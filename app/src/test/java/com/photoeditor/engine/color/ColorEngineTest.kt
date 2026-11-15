@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ColorModelsTest {
@@ -40,7 +41,7 @@ class ColorModelsTest {
     }
 
     private fun assertChannelClose(expected: Int, actual: Int) {
-        assertEquals(expected, actual, 2)
+        assertTrue("Expected $expected to be within 2 of $actual", kotlin.math.abs(expected - actual) <= 2)
     }
 }
 
