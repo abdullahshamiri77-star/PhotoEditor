@@ -45,7 +45,9 @@ fun EditorScreen(
     onRotate: () -> Unit,
     onBrightnessChange: (Float) -> Unit,
     onContrastChange: (Float) -> Unit,
-    onSaturationChange: (Float) -> Unit
+    onSaturationChange: (Float) -> Unit,
+    onAdjustmentStart: () -> Unit,
+    onAdjustmentFinish: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF111318)) {
         Column(
@@ -94,9 +96,9 @@ fun EditorScreen(
                 OutlinedButton(onClick = onReset, enabled = bitmap != null, modifier = Modifier.weight(1f)) { Text("أصل") }
             }
             Spacer(Modifier.height(4.dp))
-            AdjustmentRow("الإضاءة", brightness, -1f, 1f, onBrightnessChange, bitmap != null)
-            AdjustmentRow("التباين", contrast, 0f, 2f, onContrastChange, bitmap != null)
-            AdjustmentRow("التشبع", saturation, 0f, 2f, onSaturationChange, bitmap != null)
+            AdjustmentRow("الإضاءة", brightness, -1f, 1f, onBrightnessChange, bitmap != null, onAdjustmentStart, onAdjustmentFinish)
+            AdjustmentRow("التباين", contrast, 0f, 2f, onContrastChange, bitmap != null, onAdjustmentStart, onAdjustmentFinish)
+            AdjustmentRow("التشبع", saturation, 0f, 2f, onSaturationChange, bitmap != null, onAdjustmentStart, onAdjustmentFinish)
         }
     }
 }
@@ -108,7 +110,9 @@ private fun AdjustmentRow(
     min: Float,
     max: Float,
     onChange: (Float) -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
+    onStart: () -> Unit,
+    onFinish: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -117,7 +121,8 @@ private fun AdjustmentRow(
         Text(label, color = Color(0xFFE2E7EF), modifier = Modifier.weight(1f))
         Slider(
             value = value,
-            onValueChange = onChange,
+            onValueChange = { next -> onStart(); onChange(next) },
+            onValueChangeFinished = onFinish,
             valueRange = min..max,
             enabled = enabled,
             modifier = Modifier.weight(3f)
