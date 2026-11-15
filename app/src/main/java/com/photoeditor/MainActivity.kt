@@ -24,13 +24,24 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PhotoEditorApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val preferences = remember {
+        context.getSharedPreferences("photoeditor_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var isArabic by remember {
+        mutableStateOf(preferences.getString("language", "ar") != "en")
+    }
+    LaunchedEffect(isArabic) {
+        preferences.edit().putString("language", if (isArabic) "ar" else "en").apply()
+    }
+    fun msg(ar: String, en: String) = if (isArabic) ar else en
+
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var importedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var adjustmentBase by remember { mutableStateOf<Bitmap?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
     var saturation by remember { mutableFloatStateOf(1f) }
-    var status by remember { mutableStateOf("افتح صورة للبدء في التحرير") }
+    var status by remember { mutableStateOf(msg("افتح صورة للبدء في التحرير", "Open an image to start editing")) }
     val history = remember { EditorHistory(20) }
     var adjustmentInProgress by remember { mutableStateOf(false) }
 
@@ -54,7 +65,7 @@ private fun PhotoEditorApp() {
     fun updateAdjustment() {
         val base = adjustmentBase ?: currentBitmap ?: return
         currentBitmap = BitmapEffects.adjust(base, brightness, contrast, saturation)
-        status = "معاينة التعديلات"
+        status = msg("معاينة التعديلات", "Previewing adjustments")
     }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -70,13 +81,16 @@ private fun PhotoEditorApp() {
                         currentBitmap = safeBitmap
                         history.clear()
                         finishAdjustment()
-                        status = "تم فتح الصورة بنجاح"
+                        status = msg("تم فتح الصورة بنجاح", "Image opened successfully")
                     } else {
-                        status = "تعذر قراءة الصورة المختارة"
+                        status = msg("تعذر قراءة الصورة المختارة", "Could not read the selected image")
                     }
                 }
             } catch (error: Exception) {
-                status = "تعذر فتح الصورة: ${error.localizedMessage ?: "خطأ غير معروف"}"
+                status = msg(
+                    "تعذر فتح الصورة: ${error.localizedMessage ?: "خطأ غير معروف"}",
+                    "Could not open image: ${error.localizedMessage ?: "Unknown error"}"
+                )
             }
         }
     }
@@ -84,12 +98,12 @@ private fun PhotoEditorApp() {
     fun applyEffect(effect: () -> Bitmap) {
         finishAdjustment()
         val source = currentBitmap ?: run {
-            status = "افتح صورة أولاً"
+            status = msg("افتح صورة أولاً", "Open an image first")
             return
         }
         history.record(source)
         currentBitmap = effect()
-        status = "تم تطبيق التأثير"
+        status = msg("تم تطبيق التأثير", "Effect applied")
     }
 
     fun undo() {
@@ -98,7 +112,7 @@ private fun PhotoEditorApp() {
         val previous = history.undo(source)
         if (previous != null) {
             currentBitmap = previous
-            status = "تم التراجع"
+            status = msg("تم التراجع", "Undo completed")
         }
     }
 
@@ -108,7 +122,7 @@ private fun PhotoEditorApp() {
         val next = history.redo(source)
         if (next != null) {
             currentBitmap = next
-            status = "تمت إعادة العملية"
+            status = msg("تمت إعادة العملية", "Redo completed")
         }
     }
 
@@ -118,7 +132,7 @@ private fun PhotoEditorApp() {
         val original = importedBitmap ?: return
         history.record(source)
         currentBitmap = original.copy(Bitmap.Config.ARGB_8888, false)
-        status = "تمت استعادة الصورة الأصلية"
+        status = msg("تمت استعادة الصورة الأصلية", "Original image restored")
     }
 
     EditorScreen(
@@ -129,13 +143,17 @@ private fun PhotoEditorApp() {
         brightness = brightness,
         contrast = contrast,
         saturation = saturation,
+        isArabic = isArabic,
+        onToggleLanguage = { isArabic = !isArabic },
         onOpen = { imagePicker.launch("image/*") },
         onSave = {
             finishAdjustment()
             val bitmap = currentBitmap
             if (bitmap != null) {
                 val result = ImageExporter.savePng(context, bitmap)
-                status = result.getOrElse { "فشل الحفظ: ${it.localizedMessage ?: "خطأ"}" }
+                status = result.getOrElse {
+                    msg("فشل الحفظ: ${it.localizedMessage ?: "خطأ"}", "Save failed: ${it.localizedMessage ?: "Error"}")
+                }
             }
         },
         onUndo = { undo() },
@@ -147,6 +165,6 @@ private fun PhotoEditorApp() {
         onContrastChange = { contrast = it; updateAdjustment() },
         onSaturationChange = { saturation = it; updateAdjustment() },
         onAdjustmentStart = { beginAdjustment() },
-        onAdjustmentFinish = { finishAdjustment(); status = "تم تثبيت التعديلات" }
+        onAdjustmentFinish = { finishAdjustment(); status = msg("تم تثبيت التعديلات", "Adjustments committed") }
     )
 }
