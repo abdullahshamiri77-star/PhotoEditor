@@ -1,5 +1,7 @@
 package com.photoeditor.engine.color
 
+import kotlin.math.roundToInt
+
 /** A movable color stop on a gradient track. Position is normalized to 0..1. */
 data class GradientStop(
     val id: String,
@@ -86,5 +88,3 @@ data class GradientSpec(
         )
     }
 }
-
-private fun Float.roundToInt(): Int = kotlin.math.roundToInt(this)
