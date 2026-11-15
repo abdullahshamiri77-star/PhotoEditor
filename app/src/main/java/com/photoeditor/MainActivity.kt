@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
 private fun PhotoEditorApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var importedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var adjustmentBase by remember { mutableStateOf<Bitmap?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
@@ -64,7 +65,9 @@ private fun PhotoEditorApp() {
                 context.contentResolver.openInputStream(uri)?.use { stream ->
                     val decoded = BitmapFactory.decodeStream(stream)
                     if (decoded != null) {
-                        currentBitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
+                        val safeBitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
+                        importedBitmap = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                        currentBitmap = safeBitmap
                         history.clear()
                         finishAdjustment()
                         status = "تم فتح الصورة بنجاح"
@@ -112,9 +115,10 @@ private fun PhotoEditorApp() {
     fun resetImage() {
         finishAdjustment()
         val source = currentBitmap ?: return
+        val original = importedBitmap ?: return
         history.record(source)
-        // Reset means restore the last imported source, so retain it separately
-        status = "لا توجد نسخة أصلية أخرى؛ استخدم التراجع للعودة"
+        currentBitmap = original.copy(Bitmap.Config.ARGB_8888, false)
+        status = "تمت استعادة الصورة الأصلية"
     }
 
     EditorScreen(
