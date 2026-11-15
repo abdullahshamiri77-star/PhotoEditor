@@ -63,8 +63,8 @@ class GradientModelTest {
     @Test fun movingStopChangesItsPositionWithoutChangingOtherStops() {
         val original = GradientSpec.twoColor(ColorValue(0, 0, 0), ColorValue(255, 255, 255))
         val moved = original.moveStop("end", 0.7f)
-        assertEquals(1f, original.stops.last().position, 0.0001f)
-        assertEquals(0.7f, moved.stops.last().position, 0.0001f)
+        assertTrue(kotlin.math.abs(original.stops.last().position - 1f) < 0.0001f)
+        assertTrue(kotlin.math.abs(moved.stops.last().position - 0.7f) < 0.0001f)
     }
 
     @Test fun addingAndRemovingStopsPreservesMinimumTwo() {
