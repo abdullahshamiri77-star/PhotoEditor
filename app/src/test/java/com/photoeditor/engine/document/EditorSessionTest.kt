@@ -35,7 +35,7 @@ class EditorSessionTest {
         val updated = session.removeLayer("photo")
 
         assertFalse(updated.document.layers.any { it.id == "photo" })
-        assertNull(updated.document.selectedLayerId)
+        assertEquals("caption", updated.document.selectedLayerId)
         assertEquals(emptyMap<String, android.graphics.Bitmap>(), updated.bitmapLayers)
     }
 
