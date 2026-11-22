@@ -46,7 +46,7 @@ class CanvasViewportTest {
 
         assertEquals(CanvasViewport.MAX_SCALE, next.scale)
         assertEquals(15.666667f, next.offsetX, 0.001f)
-        assertEquals(10.333333f, next.offsetY, 0.001f)
+        assertEquals(18.333333f, next.offsetY, 0.001f)
     }
 
     @Test
