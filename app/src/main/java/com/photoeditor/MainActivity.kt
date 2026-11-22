@@ -11,8 +11,13 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import com.photoeditor.data.ImageExporter
 import com.photoeditor.engine.BitmapEffects
-import com.photoeditor.engine.EditorHistory
+import com.photoeditor.engine.document.BitmapLayerCompositor
+import com.photoeditor.engine.document.EditorSession
+import com.photoeditor.engine.document.EditorSessionHistory
+import com.photoeditor.engine.document.LayerTransform
 import com.photoeditor.ui.EditorScreen
+import java.util.UUID
+import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,37 +40,58 @@ private fun PhotoEditorApp() {
     }
     fun msg(ar: String, en: String) = if (isArabic) ar else en
 
-    var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var importedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var session by remember { mutableStateOf<EditorSession?>(null) }
+    var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var originalBitmaps by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var adjustmentBase by remember { mutableStateOf<Bitmap?>(null) }
+    var adjustmentLayerId by remember { mutableStateOf<String?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
     var saturation by remember { mutableFloatStateOf(1f) }
     var status by remember { mutableStateOf(msg("افتح صورة للبدء في التحرير", "Open an image to start editing")) }
-    val history = remember { EditorHistory(20) }
+    val history = remember { EditorSessionHistory(12) }
     var adjustmentInProgress by remember { mutableStateOf(false) }
+
+    fun renderSession(next: EditorSession?) {
+        session = next
+        previewBitmap = try {
+            next?.let { BitmapLayerCompositor.render(it.document, it.bitmapLayers) }
+        } catch (error: Exception) {
+            status = msg(
+                "تعذر تركيب الطبقات: ${error.localizedMessage ?: "خطأ"}",
+                "Could not composite layers: ${error.localizedMessage ?: "Error"}"
+            )
+            null
+        }
+    }
 
     fun finishAdjustment() {
         adjustmentInProgress = false
         adjustmentBase = null
+        adjustmentLayerId = null
         brightness = 0f
         contrast = 1f
         saturation = 1f
     }
 
     fun beginAdjustment() {
-        if (!adjustmentInProgress) {
-            val bitmap = currentBitmap ?: return
-            history.record(bitmap)
-            adjustmentBase = bitmap
-            adjustmentInProgress = true
-        }
+        if (adjustmentInProgress) return
+        val active = session ?: return
+        val layerId = active.document.selectedLayerId ?: return
+        val bitmap = active.bitmapLayers[layerId] ?: return
+        history.record(active)
+        adjustmentBase = bitmap
+        adjustmentLayerId = layerId
+        adjustmentInProgress = true
     }
 
     fun updateAdjustment() {
-        val base = adjustmentBase ?: currentBitmap ?: return
-        currentBitmap = BitmapEffects.adjust(base, brightness, contrast, saturation)
-        status = msg("معاينة التعديلات", "Previewing adjustments")
+        val active = session ?: return
+        val layerId = adjustmentLayerId ?: active.document.selectedLayerId ?: return
+        val base = adjustmentBase ?: active.bitmapLayers[layerId] ?: return
+        val adjusted = BitmapEffects.adjust(base, brightness, contrast, saturation)
+        renderSession(active.replaceBitmapPayload(layerId, adjusted))
+        status = msg("معاينة تعديلات الطبقة المحددة", "Previewing selected-layer adjustments")
     }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -77,11 +103,51 @@ private fun PhotoEditorApp() {
                     val decoded = BitmapFactory.decodeStream(stream)
                     if (decoded != null) {
                         val safeBitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
-                        importedBitmap = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                        currentBitmap = safeBitmap
-                        history.clear()
-                        finishAdjustment()
-                        status = msg("تم فتح الصورة بنجاح", "Image opened successfully")
+                        val active = session
+                        if (active == null) {
+                            val firstId = UUID.randomUUID().toString()
+                            val first = EditorSession.fromBitmap(
+                                safeBitmap,
+                                name = "Background",
+                                id = firstId
+                            )
+                            originalBitmaps = mapOf(
+                                firstId to safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                            )
+                            history.clear()
+                            finishAdjustment()
+                            renderSession(first)
+                            status = msg("تم إنشاء المستند وفتح الصورة كطبقة خلفية", "Document created with the image as its background layer")
+                        } else {
+                            history.record(active)
+                            val layerId = UUID.randomUUID().toString()
+                            val scale = min(
+                                1f,
+                                min(
+                                    active.document.width.toFloat() / safeBitmap.width,
+                                    active.document.height.toFloat() / safeBitmap.height
+                                )
+                            )
+                            val x = (active.document.width - safeBitmap.width * scale) / 2f
+                            val y = (active.document.height - safeBitmap.height * scale) / 2f
+                            val next = active.addBitmapLayer(
+                                bitmap = safeBitmap,
+                                name = "Image ${active.document.layers.size + 1}",
+                                id = layerId,
+                                transform = LayerTransform(
+                                    x = x,
+                                    y = y,
+                                    scaleX = scale,
+                                    scaleY = scale
+                                )
+                            )
+                            originalBitmaps = originalBitmaps + (
+                                layerId to safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                            )
+                            finishAdjustment()
+                            renderSession(next)
+                            status = msg("تمت إضافة الصورة كطبقة مستقلة", "Image added as an independent layer")
+                        }
                     } else {
                         status = msg("تعذر قراءة الصورة المختارة", "Could not read the selected image")
                     }
@@ -95,48 +161,62 @@ private fun PhotoEditorApp() {
         }
     }
 
-    fun applyEffect(effect: () -> Bitmap) {
+    fun applyEffect(effect: (Bitmap) -> Bitmap) {
         finishAdjustment()
-        val source = currentBitmap ?: run {
+        val active = session ?: run {
             status = msg("افتح صورة أولاً", "Open an image first")
             return
         }
-        history.record(source)
-        currentBitmap = effect()
-        status = msg("تم تطبيق التأثير", "Effect applied")
+        val layerId = active.document.selectedLayerId ?: return
+        val source = active.bitmapLayers[layerId] ?: run {
+            status = msg("حدد طبقة صورة أولاً", "Select a bitmap layer first")
+            return
+        }
+        history.record(active)
+        renderSession(active.replaceBitmapPayload(layerId, effect(source)))
+        status = msg("تم تطبيق التأثير على الطبقة المحددة", "Effect applied to selected layer")
     }
 
     fun undo() {
         finishAdjustment()
-        val source = currentBitmap ?: return
-        val previous = history.undo(source)
+        val active = session ?: return
+        val previous = history.undo(active)
         if (previous != null) {
-            currentBitmap = previous
+            renderSession(previous)
             status = msg("تم التراجع", "Undo completed")
         }
     }
 
     fun redo() {
         finishAdjustment()
-        val source = currentBitmap ?: return
-        val next = history.redo(source)
+        val active = session ?: return
+        val next = history.redo(active)
         if (next != null) {
-            currentBitmap = next
+            renderSession(next)
             status = msg("تمت إعادة العملية", "Redo completed")
         }
     }
 
     fun resetImage() {
         finishAdjustment()
-        val source = currentBitmap ?: return
-        val original = importedBitmap ?: return
-        history.record(source)
-        currentBitmap = original.copy(Bitmap.Config.ARGB_8888, false)
-        status = msg("تمت استعادة الصورة الأصلية", "Original image restored")
+        val active = session ?: return
+        val layerId = active.document.selectedLayerId ?: return
+        val original = originalBitmaps[layerId] ?: return
+        history.record(active)
+        renderSession(active.replaceBitmapPayload(
+            layerId,
+            original.copy(Bitmap.Config.ARGB_8888, false)
+        ))
+        status = msg("تمت استعادة الصورة الأصلية للطبقة", "Selected layer restored to its original image")
+    }
+
+    fun updateLayer(id: String, change: (com.photoeditor.engine.document.EditorDocument) -> com.photoeditor.engine.document.EditorDocument) {
+        val active = session ?: return
+        renderSession(active.updateDocument(change))
     }
 
     EditorScreen(
-        bitmap = currentBitmap,
+        bitmap = previewBitmap,
         status = status,
         canUndo = history.canUndo,
         canRedo = history.canRedo,
@@ -144,11 +224,13 @@ private fun PhotoEditorApp() {
         contrast = contrast,
         saturation = saturation,
         isArabic = isArabic,
+        layers = session?.document?.layers.orEmpty(),
+        selectedLayerId = session?.document?.selectedLayerId,
         onToggleLanguage = { isArabic = !isArabic },
         onOpen = { imagePicker.launch("image/*") },
         onSave = {
             finishAdjustment()
-            val bitmap = currentBitmap
+            val bitmap = previewBitmap
             if (bitmap != null) {
                 val result = ImageExporter.savePng(context, bitmap)
                 status = result.getOrElse {
@@ -159,12 +241,51 @@ private fun PhotoEditorApp() {
         onUndo = { undo() },
         onRedo = { redo() },
         onReset = { resetImage() },
-        onGrayscale = { applyEffect { BitmapEffects.grayscale(currentBitmap!!) } },
-        onRotate = { applyEffect { BitmapEffects.rotate(currentBitmap!!, 90f) } },
+        onGrayscale = { applyEffect { BitmapEffects.grayscale(it) } },
+        onRotate = { applyEffect { BitmapEffects.rotate(it, 90f) } },
         onBrightnessChange = { brightness = it; updateAdjustment() },
         onContrastChange = { contrast = it; updateAdjustment() },
         onSaturationChange = { saturation = it; updateAdjustment() },
         onAdjustmentStart = { beginAdjustment() },
-        onAdjustmentFinish = { finishAdjustment(); status = msg("تم تثبيت التعديلات", "Adjustments committed") }
+        onAdjustmentFinish = { finishAdjustment(); status = msg("تم تثبيت التعديلات", "Adjustments committed") },
+        onSelectLayer = { id ->
+            finishAdjustment()
+            updateLayer(id) { it.selectLayer(id) }
+        },
+        onToggleLayerVisibility = { id, visible ->
+            history.record(session ?: return@EditorScreen)
+            updateLayer(id) { it.setLayerVisibility(id, visible) }
+            status = msg("تم تحديث ظهور الطبقة", "Layer visibility updated")
+        },
+        onLayerOpacityChange = { id, opacity ->
+            if (!adjustmentInProgress) {
+                val active = session
+                if (active != null) {
+                    history.record(active)
+                    updateLayer(id) { it.setLayerOpacity(id, opacity) }
+                }
+            }
+        },
+        onMoveLayer = { id, direction ->
+            val active = session
+            if (active != null) {
+                val index = active.document.layers.indexOfFirst { it.id == id }
+                val target = index + direction
+                if (index >= 0 && target in active.document.layers.indices) {
+                    history.record(active)
+                    updateLayer(id) { it.moveLayer(index, target) }
+                    status = msg("تم تغيير ترتيب الطبقة", "Layer order updated")
+                }
+            }
+        },
+        onDeleteLayer = { id ->
+            val active = session
+            if (active != null) {
+                history.record(active)
+                finishAdjustment()
+                renderSession(active.removeLayer(id))
+                status = msg("تم حذف الطبقة", "Layer deleted")
+            }
+        }
     )
 }
