@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.photoeditor.engine.document.EditorLayer
+import com.photoeditor.engine.document.DocumentPreset
+import com.photoeditor.engine.document.DocumentSizeUnit
+import com.photoeditor.engine.document.DocumentSpec
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +22,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
@@ -43,6 +48,7 @@ fun EditorScreen(
     selectedLayerId: String?,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
+    onCreateDocument: (DocumentSpec) -> Unit,
     onSave: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -68,6 +74,15 @@ fun EditorScreen(
     var showColorPanel by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
+    var showNewDocumentDialog by remember { mutableStateOf(false) }
+    var presetMenuExpanded by remember { mutableStateOf(false) }
+    var selectedPreset by remember { mutableStateOf(DocumentPreset.SQUARE_1080) }
+    var widthText by remember { mutableStateOf("1080") }
+    var heightText by remember { mutableStateOf("1080") }
+    var dpiText by remember { mutableStateOf("300") }
+    var sizeUnit by remember { mutableStateOf(DocumentSizeUnit.PIXELS) }
+    var backgroundArgb by remember { mutableStateOf(0xFFFFFFFF.toInt()) }
+    var documentError by remember { mutableStateOf<String?>(null) }
 
     // The workspace owns flattened preview bitmaps; release the previous
     // preview only after Compose has stopped displaying it.
@@ -113,6 +128,17 @@ fun EditorScreen(
                             DropdownMenu(expanded = activeMenu == menu, onDismissRequest = { activeMenu = null }) {
                                 when (menu) {
                                     "File" -> {
+                                        DropdownMenuItem(text = { Text(label("مستند جديد", "New Document")) }, onClick = {
+                                            activeMenu = null
+                                            selectedPreset = DocumentPreset.SQUARE_1080
+                                            widthText = "1080"
+                                            heightText = "1080"
+                                            dpiText = "300"
+                                            sizeUnit = DocumentSizeUnit.PIXELS
+                                            backgroundArgb = 0xFFFFFFFF.toInt()
+                                            documentError = null
+                                            showNewDocumentDialog = true
+                                        })
                                         DropdownMenuItem(text = { Text(label("فتح صورة", "Open Image")) }, onClick = { activeMenu = null; onOpen() })
                                         DropdownMenuItem(text = { Text(label("تصدير PNG", "Export PNG")) }, enabled = bitmap != null, onClick = { activeMenu = null; onSave() })
                                     }
@@ -337,6 +363,140 @@ fun EditorScreen(
                 }
             }
         }
+    }
+
+    if (showNewDocumentDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewDocumentDialog = false },
+            title = { Text(label("مستند جديد", "New Document")) },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(label("قالب البداية", "Starting preset"), color = MainText, style = MaterialTheme.typography.labelMedium)
+                    Box {
+                        OutlinedButton(onClick = { presetMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selectedPreset.name)
+                        }
+                        DropdownMenu(
+                            expanded = presetMenuExpanded,
+                            onDismissRequest = { presetMenuExpanded = false }
+                        ) {
+                            DocumentPreset.values().forEach { preset ->
+                                DropdownMenuItem(
+                                    text = { Text(preset.name.replace('_', ' ')) },
+                                    onClick = {
+                                        selectedPreset = preset
+                                        widthText = preset.widthPx.toString()
+                                        heightText = preset.heightPx.toString()
+                                        dpiText = preset.dpi.toString()
+                                        sizeUnit = DocumentSizeUnit.PIXELS
+                                        presetMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = widthText,
+                            onValueChange = { widthText = it; documentError = null },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(label("العرض", "Width")) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                        OutlinedTextField(
+                            value = heightText,
+                            onValueChange = { heightText = it; documentError = null },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(label("الارتفاع", "Height")) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                    }
+                    Text(label("وحدة القياس", "Measurement unit"), color = MainText, style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            DocumentSizeUnit.PIXELS to "px",
+                            DocumentSizeUnit.INCHES to "in",
+                            DocumentSizeUnit.MILLIMETERS to "mm"
+                        ).forEach { (unit, caption) ->
+                            FilterChip(
+                                selected = sizeUnit == unit,
+                                onClick = { sizeUnit = unit },
+                                label = { Text(caption) }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = dpiText,
+                        onValueChange = { dpiText = it; documentError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("DPI") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Text(label("خلفية المستند", "Document background"), color = MainText, style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = backgroundArgb == 0xFFFFFFFF.toInt(),
+                            onClick = { backgroundArgb = 0xFFFFFFFF.toInt() },
+                            label = { Text(label("أبيض", "White")) }
+                        )
+                        FilterChip(
+                            selected = backgroundArgb == 0xFF000000.toInt(),
+                            onClick = { backgroundArgb = 0xFF000000.toInt() },
+                            label = { Text(label("أسود", "Black")) }
+                        )
+                        FilterChip(
+                            selected = backgroundArgb == 0x00000000,
+                            onClick = { backgroundArgb = 0x00000000 },
+                            label = { Text(label("شفاف", "Transparent")) }
+                        )
+                    }
+                    documentError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(
+                        label(
+                            "الحد الآمن الحالي: 32 مليون بكسل كحد أقصى",
+                            "Current safety limit: 32 million pixels maximum"
+                        ),
+                        color = MutedText,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val width = widthText.toDoubleOrNull()
+                    val height = heightText.toDoubleOrNull()
+                    val dpi = dpiText.toIntOrNull()
+                    if (width == null || height == null || dpi == null) {
+                        documentError = label("أدخل أرقامًا صحيحة للأبعاد وDPI", "Enter valid numeric dimensions and DPI")
+                    } else {
+                        try {
+                            val spec = DocumentSpec.fromPhysicalSize(
+                                width = width,
+                                height = height,
+                                unit = sizeUnit,
+                                dpi = dpi,
+                                backgroundArgb = backgroundArgb
+                            )
+                            onCreateDocument(spec)
+                            showNewDocumentDialog = false
+                        } catch (error: IllegalArgumentException) {
+                            documentError = error.message ?: label("إعدادات المستند غير صالحة", "Invalid document settings")
+                        }
+                    }
+                }) { Text(label("إنشاء", "Create")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewDocumentDialog = false }) { Text(label("إلغاء", "Cancel")) }
+            }
+        )
     }
 }
 

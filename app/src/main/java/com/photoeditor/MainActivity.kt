@@ -13,6 +13,8 @@ import com.photoeditor.data.ImageExporter
 import com.photoeditor.engine.BitmapEffects
 import com.photoeditor.engine.document.BitmapLayerCompositor
 import com.photoeditor.engine.document.BitmapOwnership
+import com.photoeditor.engine.document.DocumentManager
+import com.photoeditor.engine.document.DocumentSpec
 import com.photoeditor.engine.document.EditorSession
 import com.photoeditor.engine.document.EditorSessionHistory
 import com.photoeditor.engine.document.LayerTransform
@@ -271,6 +273,18 @@ private fun PhotoEditorApp() {
         selectedLayerId = session?.document?.selectedLayerId,
         onToggleLanguage = { isArabic = !isArabic },
         onOpen = { imagePicker.launch("image/*") },
+        onCreateDocument = { spec ->
+            finishAdjustment()
+            history.clear()
+            opacityAdjustmentLayerId = null
+            val oldOriginals = originalBitmaps.values.toList()
+            originalBitmaps = emptyMap()
+            renderSession(DocumentManager.create(spec))
+            BitmapOwnership.releaseUnretained(oldOriginals, emptyList()) { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+            status = msg("تم إنشاء مستند جديد بنجاح", "New document created successfully")
+        },
         onSave = {
             finishAdjustment()
             val bitmap = previewBitmap
