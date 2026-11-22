@@ -54,8 +54,8 @@ private fun PhotoEditorApp() {
     var opacityAdjustmentLayerId by remember { mutableStateOf<String?>(null) }
 
     fun renderSession(next: EditorSession?) {
-        session = next
-        previewBitmap = try {
+        val previous = session
+        val nextPreview = try {
             next?.let { BitmapLayerCompositor.render(it.document, it.bitmapLayers) }
         } catch (error: Exception) {
             status = msg(
@@ -64,15 +64,40 @@ private fun PhotoEditorApp() {
             )
             null
         }
+        session = next
+        previewBitmap = nextPreview
+
+        // Session snapshots in history are deep copies. Reclaim only payloads
+        // that are no longer referenced by the next session, originals, or an
+        // in-progress adjustment's immutable base image.
+        if (previous != null) {
+            val retained = java.util.IdentityHashMap<Bitmap, Boolean>()
+            next?.bitmapLayers?.values?.forEach { retained[it] = true }
+            originalBitmaps.values.forEach { retained[it] = true }
+            adjustmentBase?.let { retained[it] = true }
+            previous.bitmapLayers.values.forEach { bitmap ->
+                if (retained.put(bitmap, true) == null && !bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+            }
+        }
     }
 
     fun finishAdjustment() {
+        val base = adjustmentBase
         adjustmentInProgress = false
         adjustmentBase = null
         adjustmentLayerId = null
         brightness = 0f
         contrast = 1f
         saturation = 1f
+        if (base != null) {
+            val stillInSession = session?.bitmapLayers?.values?.any { it === base } == true
+            val retainedAsOriginal = originalBitmaps.values.any { it === base }
+            if (!stillInSession && !retainedAsOriginal && !base.isRecycled) {
+                base.recycle()
+            }
+        }
     }
 
     fun beginAdjustment() {
@@ -104,6 +129,7 @@ private fun PhotoEditorApp() {
                     val decoded = BitmapFactory.decodeStream(stream)
                     if (decoded != null) {
                         val safeBitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
+                        if (decoded !== safeBitmap && !decoded.isRecycled) decoded.recycle()
                         val active = session
                         if (active == null) {
                             val firstId = UUID.randomUUID().toString()
@@ -289,6 +315,9 @@ private fun PhotoEditorApp() {
                 history.record(active)
                 finishAdjustment()
                 renderSession(active.removeLayer(id))
+                val removedOriginal = originalBitmaps[id]
+                originalBitmaps = originalBitmaps - id
+                if (removedOriginal != null && !removedOriginal.isRecycled) removedOriginal.recycle()
                 status = msg("تم حذف الطبقة", "Layer deleted")
             }
         }
