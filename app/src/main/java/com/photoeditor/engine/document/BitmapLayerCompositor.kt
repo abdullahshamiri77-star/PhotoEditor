@@ -15,6 +15,12 @@ import android.graphics.PorterDuffXfermode
  */
 object BitmapLayerCompositor {
 
+    /** Stable ids of visible bitmap layers in bottom-to-top compositing order. */
+    fun visibleBitmapLayerIds(document: EditorDocument): List<String> =
+        document.layers
+            .filter { it.kind == LayerKind.BITMAP && it.visible && it.opacity > 0f }
+            .map { it.id }
+
     fun render(
         document: EditorDocument,
         bitmapLayers: Map<String, Bitmap>
