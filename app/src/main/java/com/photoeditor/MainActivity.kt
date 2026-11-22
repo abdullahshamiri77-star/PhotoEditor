@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import com.photoeditor.data.ImageExporter
 import com.photoeditor.engine.BitmapEffects
 import com.photoeditor.engine.document.BitmapLayerCompositor
+import com.photoeditor.engine.document.BitmapOwnership
 import com.photoeditor.engine.document.EditorSession
 import com.photoeditor.engine.document.EditorSessionHistory
 import com.photoeditor.engine.document.LayerTransform
