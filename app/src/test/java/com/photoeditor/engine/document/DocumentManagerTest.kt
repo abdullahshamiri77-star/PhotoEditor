@@ -75,6 +75,16 @@ class DocumentManagerTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
+    fun rejectsPhysicalDimensionsThatOverflowPixelLimits() {
+        DocumentSpec.fromPhysicalSize(
+            width = 100_000.0,
+            height = 100_000.0,
+            unit = DocumentSizeUnit.INCHES,
+            dpi = 1200
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
     fun rejectsInvalidDpi() {
         DocumentSpec(widthPx = 100, heightPx = 100, dpi = 0)
     }
