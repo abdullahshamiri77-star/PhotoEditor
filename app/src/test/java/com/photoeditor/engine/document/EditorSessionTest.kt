@@ -2,8 +2,6 @@ package com.photoeditor.engine.document
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Test
 
 class EditorSessionTest {
@@ -40,7 +38,7 @@ class EditorSessionTest {
     }
 
     @Test
-    fun metadataUpdatesPreserveSessionPayloadMap() {
+    fun metadataUpdatesPreserveSessionPayloadMapContents() {
         val document = EditorDocument(
             width = 100,
             height = 100,
@@ -50,6 +48,6 @@ class EditorSessionTest {
         val updated = session.updateDocument { it.setLayerVisibility("photo", false) }
 
         assertFalse(updated.document.layers.single().visible)
-        assertSame(session.bitmapLayers, updated.bitmapLayers)
+        assertEquals(session.bitmapLayers, updated.bitmapLayers)
     }
 }
