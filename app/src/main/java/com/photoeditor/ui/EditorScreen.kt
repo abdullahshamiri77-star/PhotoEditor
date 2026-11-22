@@ -69,6 +69,14 @@ fun EditorScreen(
     var showHistory by remember { mutableStateOf(false) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
 
+    // The workspace owns flattened preview bitmaps; release the previous
+    // preview only after Compose has stopped displaying it.
+    DisposableEffect(bitmap) {
+        onDispose {
+            bitmap?.let { if (!it.isRecycled) it.recycle() }
+        }
+    }
+
     fun label(ar: String, en: String) = if (isArabic) ar else en
 
     CompositionLocalProvider(LocalLayoutDirection provides direction) {
