@@ -53,6 +53,20 @@ private fun PhotoEditorApp() {
     var adjustmentInProgress by remember { mutableStateOf(false) }
     var opacityAdjustmentLayerId by remember { mutableStateOf<String?>(null) }
 
+    DisposableEffect(history) {
+        onDispose {
+            history.clear()
+            val owned = buildList {
+                addAll(session?.bitmapLayers?.values.orEmpty())
+                addAll(originalBitmaps.values)
+                adjustmentBase?.let(::add)
+            }
+            BitmapOwnership.releaseUnretained(owned, emptyList()) { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+        }
+    }
+
     fun renderSession(next: EditorSession?) {
         val previous = session
         val nextPreview = try {
@@ -71,14 +85,15 @@ private fun PhotoEditorApp() {
         // that are no longer referenced by the next session, originals, or an
         // in-progress adjustment's immutable base image.
         if (previous != null) {
-            val retained = java.util.IdentityHashMap<Bitmap, Boolean>()
-            next?.bitmapLayers?.values?.forEach { retained[it] = true }
-            originalBitmaps.values.forEach { retained[it] = true }
-            adjustmentBase?.let { retained[it] = true }
-            previous.bitmapLayers.values.forEach { bitmap ->
-                if (retained.put(bitmap, true) == null && !bitmap.isRecycled) {
-                    bitmap.recycle()
+            BitmapOwnership.releaseUnretained(
+                previous = previous.bitmapLayers.values,
+                retained = buildList {
+                    addAll(next?.bitmapLayers?.values.orEmpty())
+                    addAll(originalBitmaps.values)
+                    adjustmentBase?.let(::add)
                 }
+            ) { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
     }
