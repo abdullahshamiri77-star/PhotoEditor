@@ -11,6 +11,15 @@ class CanvasViewportTest {
     }
 
     @Test
+    fun centerZoomScalesExistingPanOffset() {
+        val next = CanvasViewport(scale = 2f, offsetX = 30f, offsetY = -10f).zoomBy(2f)
+
+        assertEquals(4f, next.scale)
+        assertEquals(60f, next.offsetX)
+        assertEquals(-20f, next.offsetY)
+    }
+
+    @Test
     fun zoomAroundPivotKeepsThatPointStationary() {
         val next = CanvasViewport().transform(
             zoomFactor = 2f,
