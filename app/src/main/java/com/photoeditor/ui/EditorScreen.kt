@@ -172,7 +172,7 @@ fun EditorScreen(
                                 Text(label("افتح صورة للبدء أو أنشئ مستندًا جديدًا", "Open an image or create a new document"), color = MutedText, style = MaterialTheme.typography.bodySmall)
                                 Button(onClick = onOpen) { Text(label("فتح صورة", "Open Image")) }
                             }
-                        } else if (layers.firstOrNull { it.id == selectedLayerId }?.visible != false) {
+                        } else if (layers.firstOrNull()?.visible != false) {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = label("معاينة مساحة العمل", "Canvas preview"),
