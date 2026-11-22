@@ -2,13 +2,14 @@ package com.photoeditor.engine.document
 
 import android.graphics.Bitmap
 import java.util.ArrayDeque
+import java.util.IdentityHashMap
 
 /**
  * Bounded undo/redo history for complete editor sessions.
  *
- * Every stored state owns copies of its bitmap payloads, preventing subsequent
- * edits from mutating historical pixels. Callers should clear the history when
- * a document is closed to release retained bitmap memory.
+ * Each stored state owns copies of its bitmap payloads. Snapshots discarded by
+ * capacity limits, redo invalidation, or clear() are recycled immediately.
+ * A state returned by undo()/redo() transfers ownership to the caller.
  */
 class EditorSessionHistory(private val capacity: Int = 20) {
     private val undoStack = ArrayDeque<EditorSession>()
@@ -20,9 +21,9 @@ class EditorSessionHistory(private val capacity: Int = 20) {
     fun record(current: EditorSession) {
         undoStack.addLast(copySession(current))
         while (undoStack.size > capacity.coerceAtLeast(1)) {
-            undoStack.removeFirst()
+            recycleSession(undoStack.removeFirst())
         }
-        redoStack.clear()
+        recycleAll(redoStack)
     }
 
     fun undo(current: EditorSession): EditorSession? {
@@ -37,17 +38,44 @@ class EditorSessionHistory(private val capacity: Int = 20) {
         return redoStack.removeLast()
     }
 
+    /** Release all bitmap copies owned by this history. */
     fun clear() {
-        undoStack.clear()
-        redoStack.clear()
+        recycleAll(undoStack)
+        recycleAll(redoStack)
     }
 
     private fun copySession(session: EditorSession): EditorSession {
-        val copiedPayloads = session.bitmapLayers.mapValues { (_, bitmap) ->
-            require(!bitmap.isRecycled) { "Cannot snapshot a recycled bitmap" }
-            bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                ?: error("Could not copy bitmap for history snapshot")
+        val copiedPayloads = LinkedHashMap<String, Bitmap>()
+        try {
+            session.bitmapLayers.forEach { (id, bitmap) ->
+                require(!bitmap.isRecycled) { "Cannot snapshot a recycled bitmap" }
+                copiedPayloads[id] = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    ?: error("Could not copy bitmap for history snapshot")
+            }
+            return EditorSession(session.document, copiedPayloads)
+        } catch (error: Throwable) {
+            recycleBitmaps(copiedPayloads.values)
+            throw error
         }
-        return EditorSession(session.document, copiedPayloads)
+    }
+
+    private fun recycleAll(stack: ArrayDeque<EditorSession>) {
+        while (stack.isNotEmpty()) {
+            recycleSession(stack.removeFirst())
+        }
+    }
+
+    private fun recycleSession(session: EditorSession) {
+        recycleBitmaps(session.bitmapLayers.values)
+    }
+
+    private fun recycleBitmaps(bitmaps: Collection<Bitmap>) {
+        // Be defensive if a payload is referenced by more than one layer id.
+        val seen = IdentityHashMap<Bitmap, Boolean>()
+        bitmaps.forEach { bitmap ->
+            if (seen.put(bitmap, true) == null && !bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
     }
 }
