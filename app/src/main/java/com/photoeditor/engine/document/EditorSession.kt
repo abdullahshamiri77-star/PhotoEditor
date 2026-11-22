@@ -63,9 +63,22 @@ data class EditorSession(
         )
     }
 
-    /** Apply a metadata-only document operation while preserving valid payloads. */
-    fun updateDocument(transform: (EditorDocument) -> EditorDocument): EditorSession =
-        copy(document = transform(document))
+    /**
+     * Apply a document operation and discard payloads whose bitmap layers no longer exist.
+     * This keeps metadata and pixel storage consistent even when callers remove or
+     * change a layer kind through a document-level operation.
+     */
+    fun updateDocument(transform: (EditorDocument) -> EditorDocument): EditorSession {
+        val updatedDocument = transform(document)
+        val validBitmapIds = updatedDocument.layers
+            .filter { it.kind == LayerKind.BITMAP }
+            .map { it.id }
+            .toSet()
+        return copy(
+            document = updatedDocument,
+            bitmapLayers = bitmapLayers.filterKeys { it in validBitmapIds }
+        )
+    }
 
     /** Replace a bitmap payload while retaining the layer's stable identity. */
     fun replaceBitmapPayload(id: String, bitmap: Bitmap): EditorSession {
