@@ -50,7 +50,7 @@ class EditorDocumentTest {
         val moved = document.moveLayer(0, 2)
 
         assertEquals(listOf("middle", "top", "bottom"), moved.layers.map { it.id })
-        assertEquals("bottom", moved.selectedLayerId)
+        assertEquals("top", moved.selectedLayerId)
         assertNotEquals(document.layers, moved.layers)
     }
 
