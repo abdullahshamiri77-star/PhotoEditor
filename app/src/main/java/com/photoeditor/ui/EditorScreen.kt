@@ -238,13 +238,15 @@ fun EditorScreen(
                                         translationY = viewport.offsetY
                                     }
                                     .pointerInput(Unit) {
+                                        val centerX = size.width / 2f
+                                        val centerY = size.height / 2f
                                         detectTransformGestures { centroid, pan, zoom, _ ->
                                             viewport = viewport.transform(
                                                 zoomFactor = zoom,
                                                 panX = pan.x,
                                                 panY = pan.y,
-                                                pivotX = centroid.x,
-                                                pivotY = centroid.y
+                                                pivotX = centroid.x - centerX,
+                                                pivotY = centroid.y - centerY
                                             )
                                         }
                                     }
@@ -538,6 +540,7 @@ fun EditorScreen(
                                 dpi = dpi,
                                 backgroundArgb = backgroundArgb
                             )
+                            viewport = CanvasViewport()
                             onCreateDocument(spec)
                             showNewDocumentDialog = false
                         } catch (error: IllegalArgumentException) {
