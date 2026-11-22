@@ -29,17 +29,16 @@ class EditorDocumentTest {
             .renameLayer("two", "Portrait")
 
         assertFalse(document.layers[0].visible)
-        assertEquals(0.35f, document.layers[1].opacity)
+        assertEquals(0.35f, document.layers[1].opacity, 0.0001f)
         assertTrue(document.layers[1].locked)
         assertEquals("Portrait", document.layers[1].name)
-        assertTrue(document.layers[0].visible.not())
     }
 
     @Test
     fun opacityIsClampedToSupportedRange() {
         val document = EditorDocument(100, 100).addLayer(layer("one"))
-        assertEquals(1f, document.setLayerOpacity("one", 1.5f).layers[0].opacity)
-        assertEquals(0f, document.setLayerOpacity("one", -0.5f).layers[0].opacity)
+        assertEquals(1f, document.setLayerOpacity("one", 1.5f).layers[0].opacity, 0.0001f)
+        assertEquals(0f, document.setLayerOpacity("one", -0.5f).layers[0].opacity, 0.0001f)
     }
 
     @Test
