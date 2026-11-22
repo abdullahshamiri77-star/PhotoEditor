@@ -35,6 +35,21 @@ class CanvasViewportTest {
     }
 
     @Test
+    fun gestureZoomClampsWithoutLosingPanDelta() {
+        val next = CanvasViewport(scale = 7.5f, offsetX = 10f, offsetY = 20f).transform(
+            zoomFactor = 4f,
+            panX = 5f,
+            panY = -3f,
+            pivotX = 0f,
+            pivotY = 0f
+        )
+
+        assertEquals(CanvasViewport.MAX_SCALE, next.scale)
+        assertEquals(15.666667f, next.offsetX, 0.001f)
+        assertEquals(10.333333f, next.offsetY, 0.001f)
+    }
+
+    @Test
     fun resetRestoresFitTransform() {
         val next = CanvasViewport(scale = 4f, offsetX = 20f, offsetY = -30f).reset()
 
