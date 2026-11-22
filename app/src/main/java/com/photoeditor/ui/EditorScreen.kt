@@ -7,6 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.photoeditor.engine.document.EditorLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +39,8 @@ fun EditorScreen(
     contrast: Float,
     saturation: Float,
     isArabic: Boolean,
+    layers: List<EditorLayer>,
+    selectedLayerId: String?,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
     onSave: () -> Unit,
@@ -49,7 +53,13 @@ fun EditorScreen(
     onContrastChange: (Float) -> Unit,
     onSaturationChange: (Float) -> Unit,
     onAdjustmentStart: () -> Unit,
-    onAdjustmentFinish: () -> Unit
+    onAdjustmentFinish: () -> Unit,
+    onSelectLayer: (String) -> Unit,
+    onToggleLayerVisibility: (String, Boolean) -> Unit,
+    onLayerOpacityChange: (String, Float) -> Unit,
+    onLayerOpacityFinish: () -> Unit,
+    onMoveLayer: (String, Int) -> Unit,
+    onDeleteLayer: (String) -> Unit
 ) {
     val direction = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
     var selectedTool by remember { mutableStateOf("Move") }
@@ -106,6 +116,10 @@ fun EditorScreen(
                                         DropdownMenuItem(text = { Text(label("أبيض وأسود", "Grayscale")) }, enabled = bitmap != null, onClick = { activeMenu = null; onGrayscale() })
                                         DropdownMenuItem(text = { Text(label("تدوير 90°", "Rotate 90°")) }, enabled = bitmap != null, onClick = { activeMenu = null; onRotate() })
                                         DropdownMenuItem(text = { Text(label("استعادة الأصل", "Restore Original")) }, enabled = bitmap != null, onClick = { activeMenu = null; onReset() })
+                                    }
+                                    "Layer" -> {
+                                        DropdownMenuItem(text = { Text(label("إضافة صورة كطبقة", "Import image layer")) }, onClick = { activeMenu = null; onOpen() })
+                                        DropdownMenuItem(text = { Text(label("حذف الطبقة المحددة", "Delete selected layer")) }, enabled = selectedLayerId != null, onClick = { activeMenu = null; selectedLayerId?.let(onDeleteLayer) })
                                     }
                                     "Window" -> {
                                         DropdownMenuItem(text = { Text(label("الطبقات", "Layers") + if (showLayers) " ✓" else "") }, onClick = { showLayers = !showLayers; activeMenu = null })
@@ -184,8 +198,99 @@ fun EditorScreen(
                         ) {
                             if (showLayers) {
                                 PanelCard(label("الطبقات", "Layers")) {
-                                    Text(label("الخلفية / الصورة الحالية", "Background / Current image"), color = MainText, style = MaterialTheme.typography.labelSmall)
-                                    Text(label("لا توجد طبقات مستقلة بعد", "Independent layers are not implemented yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                    Button(
+                                        onClick = onOpen,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(label("＋ إضافة صورة", "＋ Add image layer"), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    if (layers.isEmpty()) {
+                                        Text(label("لا توجد طبقات بعد", "No layers yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                    } else {
+                                        Column(
+                                            Modifier.fillMaxWidth().heightIn(max = 270.dp).verticalScroll(rememberScrollState()),
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            layers.asReversed().forEach { layer ->
+                                                val layerIndex = layers.indexOfFirst { it.id == layer.id }
+                                                val selected = layer.id == selectedLayerId
+                                                Column(
+                                                    Modifier.fillMaxWidth()
+                                                        .background(
+                                                            if (selected) Accent.copy(alpha = 0.18f) else Color(0xFF202329),
+                                                            RoundedCornerShape(4.dp)
+                                                        )
+                                                        .border(
+                                                            1.dp,
+                                                            if (selected) Accent else PanelEdge,
+                                                            RoundedCornerShape(4.dp)
+                                                        )
+                                                        .padding(3.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        TextButton(
+                                                            onClick = { onSelectLayer(layer.id) },
+                                                            modifier = Modifier.weight(1f),
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) {
+                                                            Text(
+                                                                layer.name,
+                                                                color = if (selected) Color.White else MainText,
+                                                                maxLines = 1,
+                                                                style = MaterialTheme.typography.labelSmall
+                                                            )
+                                                        }
+                                                        TextButton(
+                                                            onClick = { onToggleLayerVisibility(layer.id, !layer.visible) },
+                                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                                                        ) {
+                                                            Text(if (layer.visible) "◉" else "○", color = MutedText)
+                                                        }
+                                                    }
+                                                    Row(
+                                                        Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                    ) {
+                                                        TextButton(
+                                                            onClick = { onMoveLayer(layer.id, 1) },
+                                                            enabled = layerIndex < layers.lastIndex,
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) { Text("↑", color = MutedText) }
+                                                        TextButton(
+                                                            onClick = { onMoveLayer(layer.id, -1) },
+                                                            enabled = layerIndex > 0,
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) { Text("↓", color = MutedText) }
+                                                        TextButton(
+                                                            onClick = { onDeleteLayer(layer.id) },
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) { Text("×", color = Color(0xFFFF8585)) }
+                                                        Spacer(Modifier.weight(1f))
+                                                        Text(
+                                                            layer.kind.name,
+                                                            color = MutedText,
+                                                            style = MaterialTheme.typography.labelSmall
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        val selectedLayer = layers.firstOrNull { it.id == selectedLayerId }
+                                        if (selectedLayer != null) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(label("العتامة", "Opacity"), color = MainText, style = MaterialTheme.typography.labelSmall)
+                                                Spacer(Modifier.weight(1f))
+                                                Text("${(selectedLayer.opacity * 100).toInt()}%", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                            }
+                                            Slider(
+                                                value = selectedLayer.opacity,
+                                                onValueChange = { onLayerOpacityChange(selectedLayer.id, it) },
+                                                onValueChangeFinished = onLayerOpacityFinish
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             if (showProperties) {
