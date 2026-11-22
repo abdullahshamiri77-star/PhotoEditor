@@ -51,6 +51,7 @@ private fun PhotoEditorApp() {
     var status by remember { mutableStateOf(msg("افتح صورة للبدء في التحرير", "Open an image to start editing")) }
     val history = remember { EditorSessionHistory(12) }
     var adjustmentInProgress by remember { mutableStateOf(false) }
+    var opacityAdjustmentLayerId by remember { mutableStateOf<String?>(null) }
 
     fun renderSession(next: EditorSession?) {
         session = next
@@ -261,11 +262,15 @@ private fun PhotoEditorApp() {
             if (!adjustmentInProgress) {
                 val active = session
                 if (active != null) {
-                    history.record(active)
+                    if (opacityAdjustmentLayerId != id) {
+                        history.record(active)
+                        opacityAdjustmentLayerId = id
+                    }
                     updateLayer(id) { it.setLayerOpacity(id, opacity) }
                 }
             }
         },
+        onLayerOpacityFinish = { opacityAdjustmentLayerId = null },
         onMoveLayer = { id, direction ->
             val active = session
             if (active != null) {
