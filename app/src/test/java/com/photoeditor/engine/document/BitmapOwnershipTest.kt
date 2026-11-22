@@ -19,6 +19,22 @@ class BitmapOwnershipTest {
     }
 
     @Test
+    fun usesIdentityRatherThanValueEqualityForOwnership() {
+        data class Resource(val label: String)
+        val current = Resource("same-value")
+        val previousCopy = Resource("same-value")
+        val released = mutableListOf<Resource>()
+
+        BitmapOwnership.releaseUnretained(
+            previous = listOf(previousCopy),
+            retained = listOf(current)
+        ) { released += it }
+
+        assertEquals(1, released.size)
+        assertEquals(true, released.single() === previousCopy)
+    }
+
+    @Test
     fun releasesNothingWhenAllResourcesRemainReferenced() {
         val first = Any()
         val second = Any()
