@@ -166,6 +166,8 @@ private fun PhotoEditorApp() {
                 status = result.getOrElse {
                     msg("فشل الحفظ: ${it.localizedMessage ?: "خطأ"}", "Save failed: ${it.localizedMessage ?: "Error"}")
                 }
+            } else if (bitmap != null) {
+                status = msg("أظهر طبقة الصورة قبل التصدير", "Show the image layer before exporting")
             }
         },
         onUndo = { undo() },
