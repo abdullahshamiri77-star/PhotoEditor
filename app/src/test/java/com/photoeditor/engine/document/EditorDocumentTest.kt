@@ -2,7 +2,6 @@ package com.photoeditor.engine.document
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -49,9 +48,10 @@ class EditorDocumentTest {
             .addLayer(layer("top"))
         val moved = document.moveLayer(0, 2)
 
+        assertEquals(listOf("bottom", "middle", "top"), document.layers.map { it.id })
         assertEquals(listOf("middle", "top", "bottom"), moved.layers.map { it.id })
         assertEquals("top", moved.selectedLayerId)
-        assertNotEquals(document.layers, moved.layers)
+        assertEquals(setOf("bottom", "middle", "top"), moved.layers.map { it.id }.toSet())
     }
 
     @Test
