@@ -19,6 +19,17 @@ class DocumentManagerTest {
     }
 
     @Test
+    fun everyBuiltInPresetFitsTheDocumentSafetyLimits() {
+        DocumentPreset.values().forEach { preset ->
+            val spec = DocumentSpec.fromPreset(preset)
+            assertEquals(preset.widthPx, spec.widthPx)
+            assertEquals(preset.heightPx, spec.heightPx)
+            assertEquals(preset.dpi, spec.dpi)
+            assertEquals(true, spec.widthPx.toLong() * spec.heightPx <= DocumentSpec.MAX_PIXELS)
+        }
+    }
+
+    @Test
     fun convertsMillimetersToPixelsAtRequestedDpi() {
         val spec = DocumentSpec.fromPhysicalSize(
             width = 210.0,
