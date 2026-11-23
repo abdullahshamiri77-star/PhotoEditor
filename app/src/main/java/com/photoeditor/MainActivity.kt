@@ -56,18 +56,44 @@ private fun PhotoEditorApp() {
     var adjustmentInProgress by remember { mutableStateOf(false) }
     var opacityAdjustmentLayerId by remember { mutableStateOf<String?>(null) }
 
+    // Keep disposal attached to the latest Compose state, not the values
+    // captured when this screen was first composed.
+    val latestOwnedBitmaps by rememberUpdatedState(
+        buildList {
+            addAll(session?.bitmapLayers?.values.orEmpty())
+            addAll(originalBitmaps.values)
+            adjustmentBase?.let(::add)
+        }
+    )
+
     DisposableEffect(history) {
         onDispose {
             history.clear()
-            val owned = buildList {
-                addAll(session?.bitmapLayers?.values.orEmpty())
-                addAll(originalBitmaps.values)
-                adjustmentBase?.let(::add)
-            }
-            BitmapOwnership.releaseUnretained(owned, emptyList()) { bitmap ->
+            BitmapOwnership.releaseUnretained(latestOwnedBitmaps, emptyList()) { bitmap ->
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
+    }
+
+    // Each preview is a separately allocated flattened bitmap.
+    DisposableEffect(previewBitmap) {
+        val ownedPreview = previewBitmap
+        onDispose {
+            if (ownedPreview != null && !ownedPreview.isRecycled) {
+                ownedPreview.recycle()
+            }
+        }
+    }
+
+    fun recordHistory(active: EditorSession): Boolean {
+        val recorded = recordHistory(active)
+        if (!recorded) {
+            status = msg(
+                "تم تنفيذ العملية، لكن حجم الصورة تجاوز حد ذاكرة التراجع؛ لن تتوفر لها خطوة تراجع",
+                "Edit applied, but this image exceeds the undo memory budget; this action cannot be undone"
+            )
+        }
+        return recorded
     }
 
     fun renderSession(next: EditorSession?) {
@@ -348,7 +374,7 @@ private fun PhotoEditorApp() {
             updateLayer(id) { it.selectLayer(id) }
         },
         onToggleLayerVisibility = { id, visible ->
-            history.record(session ?: return@EditorScreen)
+            recordHistory(session ?: return@EditorScreen)
             updateLayer(id) { it.setLayerVisibility(id, visible) }
             status = msg("تم تحديث ظهور الطبقة", "Layer visibility updated")
         },
