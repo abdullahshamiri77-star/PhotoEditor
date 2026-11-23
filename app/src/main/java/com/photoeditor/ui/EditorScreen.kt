@@ -308,12 +308,12 @@ fun EditorScreen(
                                                 Column(
                                                     Modifier.fillMaxWidth()
                                                         .background(
-                                                            if (selected) Accent.copy(alpha = 0.18f) else Color(0xFF202329),
+                                                            if (selected) Accent.copy(alpha = 0.24f) else Color(0xFF202329),
                                                             RoundedCornerShape(4.dp)
                                                         )
                                                         .border(
-                                                            1.dp,
-                                                            if (selected) Accent else PanelEdge,
+                                                            if (selected) 2.dp else 1.dp,
+                                                            if (selected) Color(0xFF62B5FF) else PanelEdge,
                                                             RoundedCornerShape(4.dp)
                                                         )
                                                         .padding(3.dp),
@@ -326,9 +326,10 @@ fun EditorScreen(
                                                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                                         ) {
                                                             Text(
-                                                                layer.name,
-                                                                color = if (selected) Color.White else MainText,
+                                                                (if (selected) "● " else "") + layer.name,
+                                                                color = if (selected) Color(0xFF9BD0FF) else MainText,
                                                                 maxLines = 1,
+                                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                                                 style = MaterialTheme.typography.labelSmall
                                                             )
                                                         }
