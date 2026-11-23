@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.photoeditor.engine.document.EditorLayer
 
 private val AppBg = Color(0xFF17191E)
 private val PanelBg = Color(0xFF22252C)
@@ -30,6 +31,10 @@ private val MutedText = Color(0xFFAAB2C0)
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
+    layers: List<EditorLayer>,
+    selectedLayerId: String?,
+    onSelectLayer: (String) -> Unit,
+    onSetLayerVisibility: (String, Boolean) -> Unit,
     status: String,
     canUndo: Boolean,
     canRedo: Boolean,
@@ -167,7 +172,7 @@ fun EditorScreen(
                                 Text(label("افتح صورة للبدء أو أنشئ مستندًا جديدًا", "Open an image or create a new document"), color = MutedText, style = MaterialTheme.typography.bodySmall)
                                 Button(onClick = onOpen) { Text(label("فتح صورة", "Open Image")) }
                             }
-                        } else {
+                        } else if (layers.firstOrNull()?.visible != false) {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = label("معاينة مساحة العمل", "Canvas preview"),
@@ -184,8 +189,48 @@ fun EditorScreen(
                         ) {
                             if (showLayers) {
                                 PanelCard(label("الطبقات", "Layers")) {
-                                    Text(label("الخلفية / الصورة الحالية", "Background / Current image"), color = MainText, style = MaterialTheme.typography.labelSmall)
-                                    Text(label("لا توجد طبقات مستقلة بعد", "Independent layers are not implemented yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                    if (layers.isEmpty()) {
+                                        Text(label("افتح صورة لإضافة طبقة", "Open an image to add a layer"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                    } else {
+                                        layers.asReversed().forEach { layer ->
+                                            Row(
+                                                Modifier.fillMaxWidth()
+                                                    .background(
+                                                        if (layer.id == selectedLayerId) Accent.copy(alpha = 0.22f) else Color.Transparent,
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                                    .border(
+                                                        1.dp,
+                                                        if (layer.id == selectedLayerId) Accent else PanelEdge,
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                TextButton(
+                                                    onClick = { onSetLayerVisibility(layer.id, !layer.visible) },
+                                                    modifier = Modifier.size(28.dp),
+                                                    contentPadding = PaddingValues(0.dp)
+                                                ) {
+                                                    Text(if (layer.visible) "◉" else "○", color = if (layer.visible) Color(0xFF8FC5FF) else MutedText)
+                                                }
+                                                Text(
+                                                    layer.name,
+                                                    color = MainText,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    maxLines = 1,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                TextButton(
+                                                    onClick = { onSelectLayer(layer.id) },
+                                                    modifier = Modifier.size(28.dp),
+                                                    contentPadding = PaddingValues(0.dp)
+                                                ) {
+                                                    Text(if (layer.id == selectedLayerId) "●" else "○", color = Accent)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             if (showProperties) {

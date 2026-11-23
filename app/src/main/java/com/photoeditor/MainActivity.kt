@@ -12,6 +12,10 @@ import androidx.compose.runtime.*
 import com.photoeditor.data.ImageExporter
 import com.photoeditor.engine.BitmapEffects
 import com.photoeditor.engine.EditorHistory
+import com.photoeditor.engine.document.EditorDocument
+import com.photoeditor.engine.document.EditorLayer
+import com.photoeditor.engine.document.LayerKind
+import java.util.UUID
 import com.photoeditor.ui.EditorScreen
 
 class MainActivity : ComponentActivity() {
@@ -36,6 +40,7 @@ private fun PhotoEditorApp() {
     fun msg(ar: String, en: String) = if (isArabic) ar else en
 
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var document by remember { mutableStateOf<EditorDocument?>(null) }
     var importedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var adjustmentBase by remember { mutableStateOf<Bitmap?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
@@ -79,6 +84,9 @@ private fun PhotoEditorApp() {
                         val safeBitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
                         importedBitmap = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
                         currentBitmap = safeBitmap
+                        document = EditorDocument(safeBitmap.width, safeBitmap.height).addLayer(
+                            EditorLayer(UUID.randomUUID().toString(), msg("الصورة الأصلية", "Original image"), LayerKind.BITMAP)
+                        )
                         history.clear()
                         finishAdjustment()
                         status = msg("تم فتح الصورة بنجاح", "Image opened successfully")
@@ -137,6 +145,10 @@ private fun PhotoEditorApp() {
 
     EditorScreen(
         bitmap = currentBitmap,
+        layers = document?.layers ?: emptyList(),
+        selectedLayerId = document?.selectedLayerId,
+        onSelectLayer = { id -> document = document?.selectLayer(id) },
+        onSetLayerVisibility = { id, visible -> document = document?.setLayerVisibility(id, visible) },
         status = status,
         canUndo = history.canUndo,
         canRedo = history.canRedo,
@@ -149,11 +161,13 @@ private fun PhotoEditorApp() {
         onSave = {
             finishAdjustment()
             val bitmap = currentBitmap
-            if (bitmap != null) {
+            if (bitmap != null && document?.layers?.firstOrNull()?.visible != false) {
                 val result = ImageExporter.savePng(context, bitmap)
                 status = result.getOrElse {
                     msg("فشل الحفظ: ${it.localizedMessage ?: "خطأ"}", "Save failed: ${it.localizedMessage ?: "Error"}")
                 }
+            } else if (bitmap != null) {
+                status = msg("أظهر طبقة الصورة قبل التصدير", "Show the image layer before exporting")
             }
         },
         onUndo = { undo() },
