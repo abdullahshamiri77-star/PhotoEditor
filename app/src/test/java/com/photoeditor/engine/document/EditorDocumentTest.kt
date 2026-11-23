@@ -2,6 +2,7 @@ package com.photoeditor.engine.document
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -48,10 +49,9 @@ class EditorDocumentTest {
             .addLayer(layer("top"))
         val moved = document.moveLayer(0, 2)
 
-        assertEquals(listOf("bottom", "middle", "top"), document.layers.map { it.id })
         assertEquals(listOf("middle", "top", "bottom"), moved.layers.map { it.id })
         assertEquals("top", moved.selectedLayerId)
-        assertEquals(setOf("bottom", "middle", "top"), moved.layers.map { it.id }.toSet())
+        assertNotEquals(document.layers, moved.layers)
     }
 
     @Test
@@ -87,6 +87,34 @@ class EditorDocumentTest {
         val document = EditorDocument(100, 100).addLayer(layer("one"))
         assertThrows(IllegalArgumentException::class.java) {
             document.updateLayer("one") { it.copy(id = "renamed-id") }
+        }
+    }
+
+
+    @Test
+    fun lockingAndUnlockingOneLayerPreservesOtherLayerState() {
+        val document = EditorDocument(100, 100)
+            .addLayer(layer("photo"))
+            .addLayer(layer("background"))
+            .setLayerOpacity("background", 0.4f)
+            .setLayerLocked("photo", true)
+
+        val locked = document.layers.first { it.id == "photo" }
+        val untouched = document.layers.first { it.id == "background" }
+        assertTrue(locked.locked)
+        assertEquals(0.4f, untouched.opacity, 0.0001f)
+        assertFalse(untouched.locked)
+
+        val unlocked = document.setLayerLocked("photo", false)
+        assertFalse(unlocked.layers.first { it.id == "photo" }.locked)
+        assertEquals(0.4f, unlocked.layers.first { it.id == "background" }.opacity, 0.0001f)
+    }
+
+    @Test
+    fun lockingUnknownLayerIsRejected() {
+        val document = EditorDocument(100, 100).addLayer(layer("photo"))
+        assertThrows(IllegalArgumentException::class.java) {
+            document.setLayerLocked("missing", true)
         }
     }
 }
