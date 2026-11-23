@@ -68,6 +68,7 @@ fun EditorScreen(
     onAdjustmentFinish: () -> Unit,
     onSelectLayer: (String) -> Unit,
     onToggleLayerVisibility: (String, Boolean) -> Unit,
+    onToggleLayerLock: (String, Boolean) -> Unit,
     onLayerOpacityChange: (String, Float) -> Unit,
     onLayerOpacityFinish: () -> Unit,
     onMoveLayer: (String, Int) -> Unit,
@@ -339,6 +340,12 @@ fun EditorScreen(
                                                             contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
                                                         ) {
                                                             Text(if (layer.visible) "◉" else "○", color = MutedText)
+                                                        }
+                                                        TextButton(
+                                                            onClick = { onToggleLayerLock(layer.id, !layer.locked) },
+                                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                                                        ) {
+                                                            Text(if (layer.locked) "🔒" else "🔓", color = if (layer.locked) Color(0xFFFFC66D) else MutedText)
                                                         }
                                                     }
                                                     Row(
