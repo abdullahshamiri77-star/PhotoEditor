@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import robolectric.annotation.Config
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -80,9 +80,9 @@ class BitmapLayerCompositorTest {
         )
         try {
             val pixel = output.getPixel(0, 0)
-            assertEquals(127, Color.red(pixel), 2)
-            assertEquals(0, Color.green(pixel), 2)
-            assertEquals(128, Color.blue(pixel), 2)
+            assertTrue(kotlin.math.abs(Color.red(pixel) - 127) <= 2)
+            assertTrue(kotlin.math.abs(Color.green(pixel)) <= 2)
+            assertTrue(kotlin.math.abs(Color.blue(pixel) - 128) <= 2)
             assertEquals(255, Color.alpha(pixel))
         } finally {
             output.recycle()
