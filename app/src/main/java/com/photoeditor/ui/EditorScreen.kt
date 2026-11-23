@@ -89,6 +89,7 @@ fun EditorScreen(
     var backgroundArgb by remember { mutableStateOf(0xFFFFFFFF.toInt()) }
     var documentError by remember { mutableStateOf<String?>(null) }
     var viewport by remember { mutableStateOf(CanvasViewport()) }
+    val latestViewport by rememberUpdatedState(viewport)
 
     LaunchedEffect(bitmap?.width, bitmap?.height) {
         viewport = CanvasViewport()
@@ -241,7 +242,7 @@ fun EditorScreen(
                                         val centerX = size.width / 2f
                                         val centerY = size.height / 2f
                                         detectTransformGestures { centroid, pan, zoom, _ ->
-                                            viewport = viewport.transform(
+                                            viewport = latestViewport.transform(
                                                 zoomFactor = zoom,
                                                 panX = pan.x,
                                                 panY = pan.y,
