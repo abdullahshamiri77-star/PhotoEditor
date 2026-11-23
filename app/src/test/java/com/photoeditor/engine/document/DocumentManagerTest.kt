@@ -30,6 +30,15 @@ class DocumentManagerTest {
     }
 
     @Test
+    fun a5PrintPresetUsesStandard300DpiPixelDimensions() {
+        val spec = DocumentSpec.fromPreset(DocumentPreset.A5_300)
+
+        assertEquals(1748, spec.widthPx)
+        assertEquals(2480, spec.heightPx)
+        assertEquals(300, spec.dpi)
+    }
+
+    @Test
     fun convertsMillimetersToPixelsAtRequestedDpi() {
         val spec = DocumentSpec.fromPhysicalSize(
             width = 210.0,

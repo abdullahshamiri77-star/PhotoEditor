@@ -5,6 +5,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +16,7 @@ import com.photoeditor.engine.document.EditorLayer
 import com.photoeditor.engine.document.DocumentPreset
 import com.photoeditor.engine.document.DocumentSizeUnit
 import com.photoeditor.engine.document.DocumentSpec
+import com.photoeditor.engine.canvas.CanvasViewport
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -83,6 +88,12 @@ fun EditorScreen(
     var sizeUnit by remember { mutableStateOf(DocumentSizeUnit.PIXELS) }
     var backgroundArgb by remember { mutableStateOf(0xFFFFFFFF.toInt()) }
     var documentError by remember { mutableStateOf<String?>(null) }
+    var viewport by remember { mutableStateOf(CanvasViewport()) }
+    val latestViewport by rememberUpdatedState(viewport)
+
+    LaunchedEffect(bitmap?.width, bitmap?.height) {
+        viewport = CanvasViewport()
+    }
 
     // The workspace owns flattened preview bitmaps; release the previous
     // preview only after Compose has stopped displaying it.
@@ -104,7 +115,7 @@ fun EditorScreen(
                 ) {
                     Text("PhotoEditor", color = Color.White, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(12.dp))
-                    Text(if (bitmap == null) "Untitled-1" else "Image-1", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                    Text(if (layers.isEmpty()) "Untitled-1" else "Image-1", color = MutedText, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onToggleLanguage, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp)) {
                         Text(if (isArabic) "EN" else "ع", color = MainText)
@@ -205,7 +216,7 @@ fun EditorScreen(
                     }
                     // Central canvas stage.
                     Box(
-                        Modifier.weight(1f).fillMaxHeight().background(Color(0xFF30343C)).padding(10.dp),
+                        Modifier.weight(1f).fillMaxHeight().background(Color(0xFF30343C)).padding(10.dp).clipToBounds(),
                         contentAlignment = Alignment.Center
                     ) {
                         if (bitmap == null) {
@@ -219,9 +230,54 @@ fun EditorScreen(
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = label("معاينة مساحة العمل", "Canvas preview"),
-                                modifier = Modifier.fillMaxSize().border(1.dp, Color(0xFF596170)),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        scaleX = viewport.scale
+                                        scaleY = viewport.scale
+                                        translationX = viewport.offsetX
+                                        translationY = viewport.offsetY
+                                    }
+                                    .pointerInput(Unit) {
+                                        val centerX = size.width / 2f
+                                        val centerY = size.height / 2f
+                                        detectTransformGestures { centroid, pan, zoom, _ ->
+                                            viewport = latestViewport.transform(
+                                                zoomFactor = zoom,
+                                                panX = pan.x,
+                                                panY = pan.y,
+                                                pivotX = centroid.x - centerX,
+                                                pivotY = centroid.y - centerY
+                                            )
+                                        }
+                                    }
+                                    .border(1.dp, Color(0xFF596170)),
                                 contentScale = ContentScale.Fit
                             )
+                            Row(
+                                Modifier.align(Alignment.TopEnd)
+                                    .background(Color(0xDD17191E), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = { viewport = viewport.zoomBy(0.8f) },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text("−", color = MainText) }
+                                Text(
+                                    "${(viewport.scale * 100).toInt()}%",
+                                    color = MainText,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                TextButton(
+                                    onClick = { viewport = viewport.zoomBy(1.25f) },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text("+", color = MainText) }
+                                TextButton(
+                                    onClick = { viewport = viewport.reset() },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text(label("ملاءمة", "Fit"), color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall) }
+                            }
                         }
                     }
                     // Dockable right-side panels.
@@ -359,7 +415,7 @@ fun EditorScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(status, color = MutedText, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.weight(1f))
-                    Text(if (bitmap == null) "—" else "100%", color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall)
+                    Text(if (bitmap == null) "—" else "${(viewport.scale * 100).toInt()}%", color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -485,6 +541,7 @@ fun EditorScreen(
                                 dpi = dpi,
                                 backgroundArgb = backgroundArgb
                             )
+                            viewport = CanvasViewport()
                             onCreateDocument(spec)
                             showNewDocumentDialog = false
                         } catch (error: IllegalArgumentException) {
