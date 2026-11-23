@@ -87,10 +87,15 @@ class EditorSessionHistory(
         } catch (_: RuntimeException) {
             return null
         }
+        val copiedBytes = estimateBytes(currentCopy)
+        if (copiedBytes > maxBytes.coerceAtLeast(0L)) {
+            recycleSession(currentCopy)
+            return null
+        }
         val restored = undoStack.removeLast()
         retainedBytes -= estimateBytes(restored)
         redoStack.addLast(currentCopy)
-        retainedBytes += currentBytes
+        retainedBytes += copiedBytes
         trimOldSnapshots(preserveNewestRedo = true)
         return restored
     }
@@ -106,10 +111,15 @@ class EditorSessionHistory(
         } catch (_: RuntimeException) {
             return null
         }
+        val copiedBytes = estimateBytes(currentCopy)
+        if (copiedBytes > maxBytes.coerceAtLeast(0L)) {
+            recycleSession(currentCopy)
+            return null
+        }
         val restored = redoStack.removeLast()
         retainedBytes -= estimateBytes(restored)
         undoStack.addLast(currentCopy)
-        retainedBytes += currentBytes
+        retainedBytes += copiedBytes
         trimOldSnapshots(preserveNewestUndo = true)
         return restored
     }
