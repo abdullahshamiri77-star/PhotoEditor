@@ -342,6 +342,17 @@ private fun PhotoEditorApp() {
             updateLayer(id) { it.setLayerVisibility(id, visible) }
             status = msg("تم تحديث ظهور الطبقة", "Layer visibility updated")
         },
+        onToggleLayerLock = { id, locked ->
+            val active = session ?: return@EditorScreen
+            finishAdjustment()
+            history.record(active)
+            updateLayer(id) { it.setLayerLocked(id, locked) }
+            status = if (locked) {
+                msg("تم قفل الطبقة؛ لن تقبل تعديلات الصورة", "Layer locked; image edits are disabled")
+            } else {
+                msg("تم فتح قفل الطبقة", "Layer unlocked")
+            }
+        },
         onLayerOpacityChange = { id, opacity ->
             if (!adjustmentInProgress) {
                 val active = session
