@@ -78,21 +78,39 @@ class EditorSessionHistory(
 
     fun undo(current: EditorSession): EditorSession? {
         if (undoStack.isEmpty()) return null
-        val currentCopy = copySession(current)
-        retainedBytes += estimateBytes(currentCopy)
-        redoStack.addLast(currentCopy)
+        val currentBytes = estimateBytes(current)
+        if (currentBytes > maxBytes.coerceAtLeast(0L)) return null
+        val currentCopy = try {
+            copySession(current)
+        } catch (_: OutOfMemoryError) {
+            return null
+        } catch (_: RuntimeException) {
+            return null
+        }
         val restored = undoStack.removeLast()
         retainedBytes -= estimateBytes(restored)
+        redoStack.addLast(currentCopy)
+        retainedBytes += currentBytes
+        trimOldSnapshots(preserveNewestRedo = true)
         return restored
     }
 
     fun redo(current: EditorSession): EditorSession? {
         if (redoStack.isEmpty()) return null
-        val currentCopy = copySession(current)
-        retainedBytes += estimateBytes(currentCopy)
-        undoStack.addLast(currentCopy)
+        val currentBytes = estimateBytes(current)
+        if (currentBytes > maxBytes.coerceAtLeast(0L)) return null
+        val currentCopy = try {
+            copySession(current)
+        } catch (_: OutOfMemoryError) {
+            return null
+        } catch (_: RuntimeException) {
+            return null
+        }
         val restored = redoStack.removeLast()
         retainedBytes -= estimateBytes(restored)
+        undoStack.addLast(currentCopy)
+        retainedBytes += currentBytes
+        trimOldSnapshots(preserveNewestUndo = true)
         return restored
     }
 
@@ -122,6 +140,22 @@ class EditorSessionHistory(
         } catch (error: Throwable) {
             recycleBitmaps(copiedPayloads.values)
             throw error
+        }
+    }
+
+    private fun trimOldSnapshots(
+        preserveNewestUndo: Boolean = false,
+        preserveNewestRedo: Boolean = false
+    ) {
+        val budget = maxBytes.coerceAtLeast(0L)
+        while (retainedBytes > budget) {
+            when {
+                undoStack.isNotEmpty() && (!preserveNewestUndo || undoStack.size > 1) ->
+                    removeAndRecycleFirst(undoStack)
+                redoStack.isNotEmpty() && (!preserveNewestRedo || redoStack.size > 1) ->
+                    removeAndRecycleFirst(redoStack)
+                else -> break
+            }
         }
     }
 
