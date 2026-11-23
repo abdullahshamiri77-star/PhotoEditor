@@ -291,10 +291,11 @@ private fun PhotoEditorApp() {
     val selectedLayerForEditing = session?.document?.let { document ->
         document.layers.firstOrNull { it.id == document.selectedLayerId }
     }
-    val canAdjustSelectedLayer =
-        selectedLayerForEditing?.kind == com.photoeditor.engine.document.LayerKind.BITMAP &&
-            selectedLayerForEditing.locked.not() &&
-            session?.bitmapLayers?.containsKey(selectedLayerForEditing.id) == true
+    val canAdjustSelectedLayer = selectedLayerForEditing?.let { layer ->
+        layer.kind == com.photoeditor.engine.document.LayerKind.BITMAP &&
+            !layer.locked &&
+            session?.bitmapLayers?.containsKey(layer.id) == true
+    } == true
 
     EditorScreen(
         bitmap = previewBitmap,
