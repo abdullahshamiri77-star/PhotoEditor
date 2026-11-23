@@ -288,8 +288,18 @@ private fun PhotoEditorApp() {
         renderSession(active.updateDocument(change))
     }
 
+    val selectedLayerForEditing = session?.document?.let { document ->
+        document.layers.firstOrNull { it.id == document.selectedLayerId }
+    }
+    val canAdjustSelectedLayer = selectedLayerForEditing?.let { layer ->
+        layer.kind == com.photoeditor.engine.document.LayerKind.BITMAP &&
+            !layer.locked &&
+            session?.bitmapLayers?.containsKey(layer.id) == true
+    } == true
+
     EditorScreen(
         bitmap = previewBitmap,
+        canAdjustSelectedLayer = canAdjustSelectedLayer,
         status = status,
         canUndo = history.canUndo,
         canRedo = history.canRedo,
@@ -345,12 +355,20 @@ private fun PhotoEditorApp() {
         onLayerOpacityChange = { id, opacity ->
             if (!adjustmentInProgress) {
                 val active = session
-                if (active != null) {
-                    if (opacityAdjustmentLayerId != id) {
-                        history.record(active)
-                        opacityAdjustmentLayerId = id
+                val target = active?.document?.layers?.firstOrNull { it.id == id }
+                when {
+                    active == null || target == null -> Unit
+                    target.locked -> {
+                        opacityAdjustmentLayerId = null
+                        status = msg("الطبقة مقفلة؛ أزل القفل قبل تغيير العتامة", "Layer is locked; unlock it before changing opacity")
                     }
-                    updateLayer(id) { it.setLayerOpacity(id, opacity) }
+                    else -> {
+                        if (opacityAdjustmentLayerId != id) {
+                            history.record(active)
+                            opacityAdjustmentLayerId = id
+                        }
+                        updateLayer(id) { it.setLayerOpacity(id, opacity) }
+                    }
                 }
             }
         },

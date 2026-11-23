@@ -42,6 +42,7 @@ private val MutedText = Color(0xFFAAB2C0)
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
+    canAdjustSelectedLayer: Boolean,
     status: String,
     canUndo: Boolean,
     canRedo: Boolean,
@@ -158,9 +159,9 @@ fun EditorScreen(
                                         DropdownMenuItem(text = { Text(label("إعادة", "Redo")) }, enabled = canRedo, onClick = { activeMenu = null; onRedo() })
                                     }
                                     "Image" -> {
-                                        DropdownMenuItem(text = { Text(label("أبيض وأسود", "Grayscale")) }, enabled = bitmap != null, onClick = { activeMenu = null; onGrayscale() })
-                                        DropdownMenuItem(text = { Text(label("تدوير 90°", "Rotate 90°")) }, enabled = bitmap != null, onClick = { activeMenu = null; onRotate() })
-                                        DropdownMenuItem(text = { Text(label("استعادة الأصل", "Restore Original")) }, enabled = bitmap != null, onClick = { activeMenu = null; onReset() })
+                                        DropdownMenuItem(text = { Text(label("أبيض وأسود", "Grayscale")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onGrayscale() })
+                                        DropdownMenuItem(text = { Text(label("تدوير 90°", "Rotate 90°")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onRotate() })
+                                        DropdownMenuItem(text = { Text(label("استعادة الأصل", "Restore Original")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onReset() })
                                     }
                                     "Layer" -> {
                                         DropdownMenuItem(text = { Text(label("إضافة صورة كطبقة", "Import image layer")) }, onClick = { activeMenu = null; onOpen() })
@@ -378,7 +379,8 @@ fun EditorScreen(
                                             Slider(
                                                 value = selectedLayer.opacity,
                                                 onValueChange = { onLayerOpacityChange(selectedLayer.id, it) },
-                                                onValueChangeFinished = onLayerOpacityFinish
+                                                onValueChangeFinished = onLayerOpacityFinish,
+                                                enabled = !selectedLayer.locked
                                             )
                                         }
                                     }
@@ -386,9 +388,9 @@ fun EditorScreen(
                             }
                             if (showProperties) {
                                 PanelCard(label("الخصائص", "Properties")) {
-                                    AdjustmentControl(label("الإضاءة", "Brightness"), brightness, -1f..1f, bitmap != null, onBrightnessChange, onAdjustmentStart, onAdjustmentFinish)
-                                    AdjustmentControl(label("التباين", "Contrast"), contrast, 0f..2f, bitmap != null, onContrastChange, onAdjustmentStart, onAdjustmentFinish)
-                                    AdjustmentControl(label("التشبع", "Saturation"), saturation, 0f..2f, bitmap != null, onSaturationChange, onAdjustmentStart, onAdjustmentFinish)
+                                    AdjustmentControl(label("الإضاءة", "Brightness"), brightness, -1f..1f, canAdjustSelectedLayer, onBrightnessChange, onAdjustmentStart, onAdjustmentFinish)
+                                    AdjustmentControl(label("التباين", "Contrast"), contrast, 0f..2f, canAdjustSelectedLayer, onContrastChange, onAdjustmentStart, onAdjustmentFinish)
+                                    AdjustmentControl(label("التشبع", "Saturation"), saturation, 0f..2f, canAdjustSelectedLayer, onSaturationChange, onAdjustmentStart, onAdjustmentFinish)
                                 }
                             }
                             if (showColorPanel) {
