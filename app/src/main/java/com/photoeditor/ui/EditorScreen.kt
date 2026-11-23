@@ -60,7 +60,7 @@ fun EditorScreen(
     var selectedTool by remember { mutableStateOf("Move") }
     var showLayers by remember { mutableStateOf(true) }
     var showProperties by remember { mutableStateOf(true) }
-    var showColorPanel by remember { mutableStateOf(false) }
+    var showColorPanel by remember { mutableStateOf(true) }
     var showHistory by remember { mutableStateOf(false) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
 
@@ -169,8 +169,7 @@ fun EditorScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("＋", color = Color(0xFF8B96A7), style = MaterialTheme.typography.displayMedium)
                                 Text(label("مساحة العمل", "Workspace"), color = MainText, fontWeight = FontWeight.SemiBold)
-                                Text(label("افتح صورة للبدء أو أنشئ مستندًا جديدًا", "Open an image or create a new document"), color = MutedText, style = MaterialTheme.typography.bodySmall)
-                                Button(onClick = onOpen) { Text(label("فتح صورة", "Open Image")) }
+                                Text(label("لا يوجد مستند مفتوح — استخدم ملف ← فتح صورة", "No document open — use File → Open Image"), color = MutedText, style = MaterialTheme.typography.bodySmall)
                             }
                         } else if (layers.firstOrNull()?.visible != false) {
                             Image(
@@ -187,6 +186,27 @@ fun EditorScreen(
                             Modifier.width(176.dp).fillMaxHeight().background(PanelBg).padding(7.dp),
                             verticalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
+                            if (showColorPanel) {
+                                PanelCard(label("الألوان", "Colors")) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Box(Modifier.size(34.dp).background(Color(0xFFF2F2F2), RoundedCornerShape(4.dp)).border(1.dp, PanelEdge, RoundedCornerShape(4.dp)))
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(label("الأمامي", "Foreground"), color = MainText, style = MaterialTheme.typography.labelSmall)
+                                            Text("#F2F2F2", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Box(Modifier.size(34.dp).background(Color(0xFF202329), RoundedCornerShape(4.dp)).border(1.dp, PanelEdge, RoundedCornerShape(4.dp)))
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(label("الخلفي", "Background"), color = MainText, style = MaterialTheme.typography.labelSmall)
+                                            Text("#202329", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        listOf(Color.Red, Color(0xFFFF9800), Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.White).forEach { swatch ->
+                                            Box(Modifier.size(17.dp).background(swatch, RoundedCornerShape(3.dp)).border(0.5.dp, PanelEdge, RoundedCornerShape(3.dp)))
+                                        }
+                                    }
+                                }
+                            }
                             if (showLayers) {
                                 PanelCard(label("الطبقات", "Layers")) {
                                     if (layers.isEmpty()) {
@@ -238,16 +258,6 @@ fun EditorScreen(
                                     AdjustmentControl(label("الإضاءة", "Brightness"), brightness, -1f..1f, bitmap != null, onBrightnessChange, onAdjustmentStart, onAdjustmentFinish)
                                     AdjustmentControl(label("التباين", "Contrast"), contrast, 0f..2f, bitmap != null, onContrastChange, onAdjustmentStart, onAdjustmentFinish)
                                     AdjustmentControl(label("التشبع", "Saturation"), saturation, 0f..2f, bitmap != null, onSaturationChange, onAdjustmentStart, onAdjustmentFinish)
-                                }
-                            }
-                            if (showColorPanel) {
-                                PanelCard(label("الألوان", "Colors")) {
-                                    Text(label("محرك الألوان الأساسي جاهز؛ واجهة التحكم قيد التطوير", "Color engine foundation ready; controls are being developed"), color = MutedText, style = MaterialTheme.typography.labelSmall)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta).forEach {
-                                            Box(Modifier.size(17.dp).background(it, RoundedCornerShape(3.dp)))
-                                        }
-                                    }
                                 }
                             }
                             if (showHistory) {
