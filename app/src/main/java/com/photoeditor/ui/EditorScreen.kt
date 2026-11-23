@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -63,6 +64,11 @@ fun EditorScreen(
     var showColorPanel by remember { mutableStateOf(true) }
     var showHistory by remember { mutableStateOf(false) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
+    var foregroundColor by remember { mutableStateOf(Color(0xFFF2F2F2)) }
+    var backgroundColor by remember { mutableStateOf(Color(0xFF202329)) }
+    var editingForeground by remember { mutableStateOf(true) }
+    var showColorPicker by remember { mutableStateOf(false) }
+    val colorPresets = listOf(Color.Black, Color.White, Color.Red, Color(0xFFFF9800), Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color(0xFF795548), Color(0xFF9C27B0), Color(0xFF607D8B))
 
     fun label(ar: String, en: String) = if (isArabic) ar else en
 
@@ -188,22 +194,53 @@ fun EditorScreen(
                         ) {
                             if (showColorPanel) {
                                 PanelCard(label("الألوان", "Colors")) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Box(Modifier.size(34.dp).background(Color(0xFFF2F2F2), RoundedCornerShape(4.dp)).border(1.dp, PanelEdge, RoundedCornerShape(4.dp)))
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text(label("الأمامي", "Foreground"), color = MainText, style = MaterialTheme.typography.labelSmall)
-                                            Text("#F2F2F2", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Box(
+                                                Modifier.fillMaxWidth().height(34.dp)
+                                                    .background(foregroundColor, RoundedCornerShape(4.dp))
+                                                    .border(if (editingForeground) 2.dp else 1.dp, if (editingForeground) Accent else PanelEdge, RoundedCornerShape(4.dp))
+                                                    .clickable { editingForeground = true; showColorPicker = true }
+                                            )
+                                            Text(label("أمامي", "Foreground"), color = MainText, style = MaterialTheme.typography.labelSmall)
+                                            Text(foregroundColor.toHexString(), color = MutedText, style = MaterialTheme.typography.labelSmall)
                                         }
-                                        Box(Modifier.size(34.dp).background(Color(0xFF202329), RoundedCornerShape(4.dp)).border(1.dp, PanelEdge, RoundedCornerShape(4.dp)))
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text(label("الخلفي", "Background"), color = MainText, style = MaterialTheme.typography.labelSmall)
-                                            Text("#202329", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Box(
+                                                Modifier.fillMaxWidth().height(34.dp)
+                                                    .background(backgroundColor, RoundedCornerShape(4.dp))
+                                                    .border(if (!editingForeground) 2.dp else 1.dp, if (!editingForeground) Accent else PanelEdge, RoundedCornerShape(4.dp))
+                                                    .clickable { editingForeground = false; showColorPicker = true }
+                                            )
+                                            Text(label("خلفي", "Background"), color = MainText, style = MaterialTheme.typography.labelSmall)
+                                            Text(backgroundColor.toHexString(), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        TextButton(
+                                            onClick = { val old = foregroundColor; foregroundColor = backgroundColor; backgroundColor = old },
+                                            contentPadding = PaddingValues(2.dp),
+                                            modifier = Modifier.size(28.dp)
+                                        ) { Text("⇄", color = MainText) }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                                        colorPresets.take(6).forEach { swatch ->
+                                            Box(
+                                                Modifier.weight(1f).height(20.dp).background(swatch, RoundedCornerShape(3.dp))
+                                                    .border(1.dp, PanelEdge, RoundedCornerShape(3.dp))
+                                                    .clickable { if (editingForeground) foregroundColor = swatch else backgroundColor = swatch }
+                                            )
                                         }
                                     }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                        listOf(Color.Red, Color(0xFFFF9800), Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.White).forEach { swatch ->
-                                            Box(Modifier.size(17.dp).background(swatch, RoundedCornerShape(3.dp)).border(0.5.dp, PanelEdge, RoundedCornerShape(3.dp)))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                                        colorPresets.drop(6).forEach { swatch ->
+                                            Box(
+                                                Modifier.weight(1f).height(20.dp).background(swatch, RoundedCornerShape(3.dp))
+                                                    .border(1.dp, PanelEdge, RoundedCornerShape(3.dp))
+                                                    .clickable { if (editingForeground) foregroundColor = swatch else backgroundColor = swatch }
+                                            )
                                         }
+                                    }
+                                    TextButton(onClick = { showColorPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                                        Text(label("اختيار لون مخصص", "Choose Custom Color"), color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -280,6 +317,42 @@ fun EditorScreen(
             }
         }
     }
+    if (showColorPicker) {
+        AlertDialog(
+            onDismissRequest = { showColorPicker = false },
+            title = { Text(label("اختيار اللون", "Choose Color")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(label(if (editingForeground) "اللون الأمامي" else "اللون الخلفي", if (editingForeground) "Foreground color" else "Background color"), color = MainText)
+                    colorPresets.chunked(6).forEach { rowColors ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowColors.forEach { swatch ->
+                                Box(
+                                    Modifier.weight(1f).height(34.dp).background(swatch, RoundedCornerShape(4.dp))
+                                        .border(1.dp, PanelEdge, RoundedCornerShape(4.dp))
+                                        .clickable { if (editingForeground) foregroundColor = swatch else backgroundColor = swatch }
+                                )
+                            }
+                        }
+                    }
+                    Box(
+                        Modifier.fillMaxWidth().height(42.dp)
+                            .background(if (editingForeground) foregroundColor else backgroundColor, RoundedCornerShape(5.dp))
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showColorPicker = false }) { Text(label("تم", "Done")) } },
+            dismissButton = { TextButton(onClick = { showColorPicker = false }) { Text(label("إغلاق", "Close")) } }
+        )
+    }
+}
+
+private fun Color.toHexString(): String {
+    return "#%02X%02X%02X".format(
+        (red * 255).toInt().coerceIn(0, 255),
+        (green * 255).toInt().coerceIn(0, 255),
+        (blue * 255).toInt().coerceIn(0, 255)
+    )
 }
 
 @Composable
