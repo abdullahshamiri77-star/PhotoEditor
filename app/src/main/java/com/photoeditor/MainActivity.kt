@@ -121,8 +121,22 @@ private fun PhotoEditorApp() {
     fun beginAdjustment() {
         if (adjustmentInProgress) return
         val active = session ?: return
-        val layerId = active.document.selectedLayerId ?: return
-        val bitmap = active.bitmapLayers[layerId] ?: return
+        val layerId = active.document.selectedLayerId ?: run {
+            status = msg("حدد طبقة صورة أولاً", "Select an image layer first")
+            return
+        }
+        val selectedLayer = active.document.layers.firstOrNull { it.id == layerId } ?: run {
+            status = msg("الطبقة المحددة غير موجودة", "Selected layer no longer exists")
+            return
+        }
+        if (selectedLayer.locked) {
+            status = msg("الطبقة مقفلة؛ أزل القفل قبل التعديل", "Layer is locked; unlock it before editing")
+            return
+        }
+        val bitmap = active.bitmapLayers[layerId] ?: run {
+            status = msg("هذه الطبقة لا تحتوي على صورة قابلة للتعديل", "This layer has no editable bitmap")
+            return
+        }
         history.record(active)
         adjustmentBase = bitmap
         adjustmentLayerId = layerId
@@ -132,6 +146,12 @@ private fun PhotoEditorApp() {
     fun updateAdjustment() {
         val active = session ?: return
         val layerId = adjustmentLayerId ?: active.document.selectedLayerId ?: return
+        val layer = active.document.layers.firstOrNull { it.id == layerId } ?: return
+        if (layer.locked) {
+            status = msg("الطبقة مقفلة؛ أُلغي التعديل", "Layer is locked; adjustment cancelled")
+            finishAdjustment()
+            return
+        }
         val base = adjustmentBase ?: active.bitmapLayers[layerId] ?: return
         val adjusted = BitmapEffects.adjust(base, brightness, contrast, saturation)
         renderSession(active.replaceBitmapPayload(layerId, adjusted))
@@ -212,9 +232,17 @@ private fun PhotoEditorApp() {
             status = msg("افتح صورة أولاً", "Open an image first")
             return
         }
-        val layerId = active.document.selectedLayerId ?: return
+        val layerId = active.document.selectedLayerId ?: run {
+            status = msg("حدد طبقة صورة أولاً", "Select an image layer first")
+            return
+        }
+        val layer = active.document.layers.firstOrNull { it.id == layerId } ?: return
+        if (layer.locked) {
+            status = msg("الطبقة مقفلة؛ أزل القفل قبل تطبيق التأثير", "Layer is locked; unlock it before applying effects")
+            return
+        }
         val source = active.bitmapLayers[layerId] ?: run {
-            status = msg("حدد طبقة صورة أولاً", "Select a bitmap layer first")
+            status = msg("الطبقة المحددة ليست طبقة صورة قابلة للتأثير", "Selected layer is not an editable image layer")
             return
         }
         history.record(active)
