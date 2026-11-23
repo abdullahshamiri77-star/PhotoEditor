@@ -86,7 +86,7 @@ private fun PhotoEditorApp() {
     }
 
     fun recordHistory(active: EditorSession): Boolean {
-        val recorded = recordHistory(active)
+        val recorded = history.record(active)
         if (!recorded) {
             status = msg(
                 "تم تنفيذ العملية، لكن حجم الصورة تجاوز حد ذاكرة التراجع؛ لن تتوفر لها خطوة تراجع",
