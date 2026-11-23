@@ -80,9 +80,9 @@ class BitmapLayerCompositorTest {
         )
         try {
             val pixel = output.getPixel(0, 0)
-            assertTrue(kotlin.math.abs(Color.red(pixel) - 127) <= 2)
-            assertTrue(kotlin.math.abs(Color.green(pixel)) <= 2)
-            assertTrue(kotlin.math.abs(Color.blue(pixel) - 128) <= 2)
+            assertTrue("Expected red near 127, actual=${Color.red(pixel)}, pixel=$pixel", kotlin.math.abs(Color.red(pixel) - 127) <= 2)
+            assertTrue("Expected green near 0, actual=${Color.green(pixel)}, pixel=$pixel", kotlin.math.abs(Color.green(pixel)) <= 2)
+            assertTrue("Expected blue near 128, actual=${Color.blue(pixel)}, pixel=$pixel", kotlin.math.abs(Color.blue(pixel) - 128) <= 2)
             assertEquals(255, Color.alpha(pixel))
         } finally {
             output.recycle()
