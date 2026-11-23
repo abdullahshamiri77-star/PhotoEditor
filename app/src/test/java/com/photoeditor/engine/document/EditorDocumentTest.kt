@@ -89,4 +89,32 @@ class EditorDocumentTest {
             document.updateLayer("one") { it.copy(id = "renamed-id") }
         }
     }
+
+    @Test
+    fun lockingAndUnlockingOneLayerPreservesOtherLayerState() {
+        val document = EditorDocument(100, 100)
+            .addLayer(layer("photo"))
+            .addLayer(layer("background"))
+            .setLayerOpacity("background", 0.4f)
+            .setLayerLocked("photo", true)
+
+        val locked = document.layers.first { it.id == "photo" }
+        val untouched = document.layers.first { it.id == "background" }
+        assertTrue(locked.locked)
+        assertEquals(0.4f, untouched.opacity, 0.0001f)
+        assertFalse(untouched.locked)
+
+        val unlocked = document.setLayerLocked("photo", false)
+        assertFalse(unlocked.layers.first { it.id == "photo" }.locked)
+        assertEquals(0.4f, unlocked.layers.first { it.id == "background" }.opacity, 0.0001f)
+    }
+
+    @Test
+    fun lockingUnknownLayerIsRejected() {
+        val document = EditorDocument(100, 100).addLayer(layer("photo"))
+        assertThrows(IllegalArgumentException::class.java) {
+            document.setLayerLocked("missing", true)
+        }
+    }
+
 }
