@@ -163,7 +163,7 @@ private fun PhotoEditorApp() {
             status = msg("هذه الطبقة لا تحتوي على صورة قابلة للتعديل", "This layer has no editable bitmap")
             return
         }
-        history.record(active)
+        recordHistory(active)
         adjustmentBase = bitmap
         adjustmentLayerId = layerId
         adjustmentInProgress = true
@@ -210,7 +210,7 @@ private fun PhotoEditorApp() {
                             renderSession(first)
                             status = msg("تم إنشاء المستند وفتح الصورة كطبقة خلفية", "Document created with the image as its background layer")
                         } else {
-                            history.record(active)
+                            recordHistory(active)
                             val layerId = UUID.randomUUID().toString()
                             val scale = min(
                                 1f,
@@ -271,7 +271,7 @@ private fun PhotoEditorApp() {
             status = msg("الطبقة المحددة ليست طبقة صورة قابلة للتأثير", "Selected layer is not an editable image layer")
             return
         }
-        history.record(active)
+        recordHistory(active)
         renderSession(active.replaceBitmapPayload(layerId, effect(source)))
         status = msg("تم تطبيق التأثير على الطبقة المحددة", "Effect applied to selected layer")
     }
@@ -301,7 +301,7 @@ private fun PhotoEditorApp() {
         val active = session ?: return
         val layerId = active.document.selectedLayerId ?: return
         val original = originalBitmaps[layerId] ?: return
-        history.record(active)
+        recordHistory(active)
         renderSession(active.replaceBitmapPayload(
             layerId,
             original.copy(Bitmap.Config.ARGB_8888, false)
@@ -381,7 +381,7 @@ private fun PhotoEditorApp() {
         onToggleLayerLock = { id, locked ->
             val active = session ?: return@EditorScreen
             finishAdjustment()
-            history.record(active)
+            recordHistory(active)
             updateLayer(id) { it.setLayerLocked(id, locked) }
             status = if (locked) {
                 msg("تم قفل الطبقة؛ لن تقبل تعديلات الصورة", "Layer locked; image edits are disabled")
@@ -401,7 +401,7 @@ private fun PhotoEditorApp() {
                     }
                     else -> {
                         if (opacityAdjustmentLayerId != id) {
-                            history.record(active)
+                            recordHistory(active)
                             opacityAdjustmentLayerId = id
                         }
                         updateLayer(id) { it.setLayerOpacity(id, opacity) }
@@ -416,7 +416,7 @@ private fun PhotoEditorApp() {
                 val index = active.document.layers.indexOfFirst { it.id == id }
                 val target = index + direction
                 if (index >= 0 && target in active.document.layers.indices) {
-                    history.record(active)
+                    recordHistory(active)
                     updateLayer(id) { it.moveLayer(index, target) }
                     status = msg("تم تغيير ترتيب الطبقة", "Layer order updated")
                 }
@@ -425,7 +425,7 @@ private fun PhotoEditorApp() {
         onDeleteLayer = { id ->
             val active = session
             if (active != null) {
-                history.record(active)
+                recordHistory(active)
                 finishAdjustment()
                 renderSession(active.removeLayer(id))
                 val removedOriginal = originalBitmaps[id]
