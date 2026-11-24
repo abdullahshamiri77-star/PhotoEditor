@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: alpha-blending-android-${{ github.event.pull_request.number || github.ref }}
+  group: alpha-blending-android-\${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,9 +41,17 @@ jobs:
           profile: pixel_2
           disable-animations: true
           emulator-boot-timeout: 600
-          script: gradle connectedDebugAndroidTest
+          script: |
+            mkdir -p app/build/diagnostics
+            adb logcat -c
+            gradle connectedDebugAndroidTest
+            test_status=$?
+            adb logcat -d -v threadtime > app/build/diagnostics/emulator-logcat.txt
+            adb shell dumpsys activity exit-info com.photoeditor.test > app/build/diagnostics/test-process-exit-info.txt || true
+            adb shell dumpsys activity exit-info com.photoeditor > app/build/diagnostics/app-process-exit-info.txt || true
+            exit "$test_status"
 
-      - name: Upload instrumentation reports
+      - name: Upload instrumentation reports and crash diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -51,4 +59,5 @@ jobs:
           path: |
             app/build/outputs/androidTest-results/connected/
             app/build/reports/androidTests/connected/
+            app/build/diagnostics/
           if-no-files-found: warn
