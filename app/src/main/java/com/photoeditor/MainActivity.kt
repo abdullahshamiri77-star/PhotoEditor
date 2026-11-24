@@ -202,8 +202,9 @@ private fun PhotoEditorApp() {
                 } else {
                     val active = session
                     val layerId = UUID.randomUUID().toString()
-                    originalCopy = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    val originalSnapshot = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
                         ?: error("Could not create the original-image snapshot")
+                    originalCopy = originalSnapshot
 
                     if (active == null) {
                         val first = EditorSession.fromBitmap(
@@ -213,7 +214,7 @@ private fun PhotoEditorApp() {
                         )
                         history.clear()
                         finishAdjustment()
-                        originalBitmaps = mapOf(layerId to originalCopy)
+                        originalBitmaps = mapOf(layerId to originalSnapshot)
                         originalCopy = null
                         ownershipTransferred = true
                         renderSession(first)
@@ -243,7 +244,7 @@ private fun PhotoEditorApp() {
                                 scaleY = scale
                             )
                         )
-                        originalBitmaps = originalBitmaps + (layerId to originalCopy)
+                        originalBitmaps = originalBitmaps + (layerId to originalSnapshot)
                         originalCopy = null
                         finishAdjustment()
                         ownershipTransferred = true
