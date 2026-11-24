@@ -103,6 +103,12 @@ private fun PhotoEditorApp() {
         val previous = session
         val nextPreview = try {
             next?.let { BitmapLayerCompositor.render(it.document, it.bitmapLayers) }
+        } catch (_: OutOfMemoryError) {
+            status = msg(
+                "لا توجد ذاكرة كافية لتحديث معاينة الطبقات",
+                "Not enough memory to refresh the layer preview"
+            )
+            null
         } catch (error: Exception) {
             status = msg(
                 "تعذر تركيب الطبقات: ${error.localizedMessage ?: "خطأ"}",
@@ -214,10 +220,10 @@ private fun PhotoEditorApp() {
                         )
                         history.clear()
                         finishAdjustment()
+                        renderSession(first)
                         originalBitmaps = mapOf(layerId to originalSnapshot)
                         originalCopy = null
                         ownershipTransferred = true
-                        renderSession(first)
                         status = msg(
                             "تم إنشاء المستند وفتح الصورة كطبقة خلفية",
                             "Document created with the image as its background layer"
@@ -244,11 +250,11 @@ private fun PhotoEditorApp() {
                                 scaleY = scale
                             )
                         )
+                        finishAdjustment()
+                        renderSession(next)
                         originalBitmaps = originalBitmaps + (layerId to originalSnapshot)
                         originalCopy = null
-                        finishAdjustment()
                         ownershipTransferred = true
-                        renderSession(next)
                         status = msg(
                             "تمت إضافة الصورة كطبقة مستقلة",
                             "Image added as an independent layer"
