@@ -44,6 +44,7 @@ jobs:
           script: |
             mkdir -p app/build/diagnostics
             adb logcat -c
+            set +e
             gradle connectedDebugAndroidTest
             test_status=$?
             adb logcat -d -v threadtime > app/build/diagnostics/emulator-logcat.txt
