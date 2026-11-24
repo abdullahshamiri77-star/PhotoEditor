@@ -5,8 +5,18 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.photoeditor.engine.document.EditorLayer
+import com.photoeditor.engine.document.DocumentPreset
+import com.photoeditor.engine.document.DocumentSizeUnit
+import com.photoeditor.engine.document.DocumentSpec
+import com.photoeditor.engine.canvas.CanvasViewport
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,9 +27,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.photoeditor.engine.document.EditorLayer
 
 private val AppBg = Color(0xFF17191E)
 private val PanelBg = Color(0xFF22252C)
@@ -31,10 +42,7 @@ private val MutedText = Color(0xFFAAB2C0)
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
-    layers: List<EditorLayer>,
-    selectedLayerId: String?,
-    onSelectLayer: (String) -> Unit,
-    onSetLayerVisibility: (String, Boolean) -> Unit,
+    canAdjustSelectedLayer: Boolean,
     status: String,
     canUndo: Boolean,
     canRedo: Boolean,
@@ -42,8 +50,11 @@ fun EditorScreen(
     contrast: Float,
     saturation: Float,
     isArabic: Boolean,
+    layers: List<EditorLayer>,
+    selectedLayerId: String?,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
+    onCreateDocument: (DocumentSpec) -> Unit,
     onSave: () -> Unit,
     onUndo: () -> Unit,
     onRedo: () -> Unit,
@@ -54,7 +65,14 @@ fun EditorScreen(
     onContrastChange: (Float) -> Unit,
     onSaturationChange: (Float) -> Unit,
     onAdjustmentStart: () -> Unit,
-    onAdjustmentFinish: () -> Unit
+    onAdjustmentFinish: () -> Unit,
+    onSelectLayer: (String) -> Unit,
+    onToggleLayerVisibility: (String, Boolean) -> Unit,
+    onToggleLayerLock: (String, Boolean) -> Unit,
+    onLayerOpacityChange: (String, Float) -> Unit,
+    onLayerOpacityFinish: () -> Unit,
+    onMoveLayer: (String, Int) -> Unit,
+    onDeleteLayer: (String) -> Unit
 ) {
     val direction = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
     var selectedTool by remember { mutableStateOf("Move") }
@@ -63,6 +81,29 @@ fun EditorScreen(
     var showColorPanel by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
+    var showNewDocumentDialog by remember { mutableStateOf(false) }
+    var presetMenuExpanded by remember { mutableStateOf(false) }
+    var selectedPreset by remember { mutableStateOf(DocumentPreset.SQUARE_1080) }
+    var widthText by remember { mutableStateOf("1080") }
+    var heightText by remember { mutableStateOf("1080") }
+    var dpiText by remember { mutableStateOf("300") }
+    var sizeUnit by remember { mutableStateOf(DocumentSizeUnit.PIXELS) }
+    var backgroundArgb by remember { mutableStateOf(0xFFFFFFFF.toInt()) }
+    var documentError by remember { mutableStateOf<String?>(null) }
+    var viewport by remember { mutableStateOf(CanvasViewport()) }
+    val latestViewport by rememberUpdatedState(viewport)
+
+    LaunchedEffect(bitmap?.width, bitmap?.height) {
+        viewport = CanvasViewport()
+    }
+
+    // The workspace owns flattened preview bitmaps; release the previous
+    // preview only after Compose has stopped displaying it.
+    DisposableEffect(bitmap) {
+        onDispose {
+            bitmap?.let { if (!it.isRecycled) it.recycle() }
+        }
+    }
 
     fun label(ar: String, en: String) = if (isArabic) ar else en
 
@@ -76,7 +117,7 @@ fun EditorScreen(
                 ) {
                     Text("PhotoEditor", color = Color.White, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(12.dp))
-                    Text(if (bitmap == null) "Untitled-1" else "Image-1", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                    Text(if (layers.isEmpty()) "Untitled-1" else "Image-1", color = MutedText, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onToggleLanguage, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp)) {
                         Text(if (isArabic) "EN" else "ع", color = MainText)
@@ -100,6 +141,17 @@ fun EditorScreen(
                             DropdownMenu(expanded = activeMenu == menu, onDismissRequest = { activeMenu = null }) {
                                 when (menu) {
                                     "File" -> {
+                                        DropdownMenuItem(text = { Text(label("مستند جديد", "New Document")) }, onClick = {
+                                            activeMenu = null
+                                            selectedPreset = DocumentPreset.SQUARE_1080
+                                            widthText = "1080"
+                                            heightText = "1080"
+                                            dpiText = "300"
+                                            sizeUnit = DocumentSizeUnit.PIXELS
+                                            backgroundArgb = 0xFFFFFFFF.toInt()
+                                            documentError = null
+                                            showNewDocumentDialog = true
+                                        })
                                         DropdownMenuItem(text = { Text(label("فتح صورة", "Open Image")) }, onClick = { activeMenu = null; onOpen() })
                                         DropdownMenuItem(text = { Text(label("تصدير PNG", "Export PNG")) }, enabled = bitmap != null, onClick = { activeMenu = null; onSave() })
                                     }
@@ -108,9 +160,13 @@ fun EditorScreen(
                                         DropdownMenuItem(text = { Text(label("إعادة", "Redo")) }, enabled = canRedo, onClick = { activeMenu = null; onRedo() })
                                     }
                                     "Image" -> {
-                                        DropdownMenuItem(text = { Text(label("أبيض وأسود", "Grayscale")) }, enabled = bitmap != null, onClick = { activeMenu = null; onGrayscale() })
-                                        DropdownMenuItem(text = { Text(label("تدوير 90°", "Rotate 90°")) }, enabled = bitmap != null, onClick = { activeMenu = null; onRotate() })
-                                        DropdownMenuItem(text = { Text(label("استعادة الأصل", "Restore Original")) }, enabled = bitmap != null, onClick = { activeMenu = null; onReset() })
+                                        DropdownMenuItem(text = { Text(label("أبيض وأسود", "Grayscale")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onGrayscale() })
+                                        DropdownMenuItem(text = { Text(label("تدوير 90°", "Rotate 90°")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onRotate() })
+                                        DropdownMenuItem(text = { Text(label("استعادة الأصل", "Restore Original")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onReset() })
+                                    }
+                                    "Layer" -> {
+                                        DropdownMenuItem(text = { Text(label("إضافة صورة كطبقة", "Import image layer")) }, onClick = { activeMenu = null; onOpen() })
+                                        DropdownMenuItem(text = { Text(label("حذف الطبقة المحددة", "Delete selected layer")) }, enabled = selectedLayerId != null, onClick = { activeMenu = null; selectedLayerId?.let(onDeleteLayer) })
                                     }
                                     "Window" -> {
                                         DropdownMenuItem(text = { Text(label("الطبقات", "Layers") + if (showLayers) " ✓" else "") }, onClick = { showLayers = !showLayers; activeMenu = null })
@@ -162,7 +218,7 @@ fun EditorScreen(
                     }
                     // Central canvas stage.
                     Box(
-                        Modifier.weight(1f).fillMaxHeight().background(Color(0xFF30343C)).padding(10.dp),
+                        Modifier.weight(1f).fillMaxHeight().background(Color(0xFF30343C)).padding(10.dp).clipToBounds(),
                         contentAlignment = Alignment.Center
                     ) {
                         if (bitmap == null) {
@@ -172,13 +228,58 @@ fun EditorScreen(
                                 Text(label("افتح صورة للبدء أو أنشئ مستندًا جديدًا", "Open an image or create a new document"), color = MutedText, style = MaterialTheme.typography.bodySmall)
                                 Button(onClick = onOpen) { Text(label("فتح صورة", "Open Image")) }
                             }
-                        } else if (layers.firstOrNull()?.visible != false) {
+                        } else {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = label("معاينة مساحة العمل", "Canvas preview"),
-                                modifier = Modifier.fillMaxSize().border(1.dp, Color(0xFF596170)),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        scaleX = viewport.scale
+                                        scaleY = viewport.scale
+                                        translationX = viewport.offsetX
+                                        translationY = viewport.offsetY
+                                    }
+                                    .pointerInput(Unit) {
+                                        val centerX = size.width / 2f
+                                        val centerY = size.height / 2f
+                                        detectTransformGestures { centroid, pan, zoom, _ ->
+                                            viewport = latestViewport.transform(
+                                                zoomFactor = zoom,
+                                                panX = pan.x,
+                                                panY = pan.y,
+                                                pivotX = centroid.x - centerX,
+                                                pivotY = centroid.y - centerY
+                                            )
+                                        }
+                                    }
+                                    .border(1.dp, Color(0xFF596170)),
                                 contentScale = ContentScale.Fit
                             )
+                            Row(
+                                Modifier.align(Alignment.TopEnd)
+                                    .background(Color(0xDD17191E), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = { viewport = viewport.zoomBy(0.8f) },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text("−", color = MainText) }
+                                Text(
+                                    "${(viewport.scale * 100).toInt()}%",
+                                    color = MainText,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                TextButton(
+                                    onClick = { viewport = viewport.zoomBy(1.25f) },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text("+", color = MainText) }
+                                TextButton(
+                                    onClick = { viewport = viewport.reset() },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text(label("ملاءمة", "Fit"), color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall) }
+                            }
                         }
                     }
                     // Dockable right-side panels.
@@ -189,55 +290,114 @@ fun EditorScreen(
                         ) {
                             if (showLayers) {
                                 PanelCard(label("الطبقات", "Layers")) {
+                                    Button(
+                                        onClick = onOpen,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(label("＋ إضافة صورة", "＋ Add image layer"), style = MaterialTheme.typography.labelSmall)
+                                    }
                                     if (layers.isEmpty()) {
-                                        Text(label("افتح صورة لإضافة طبقة", "Open an image to add a layer"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                        Text(label("لا توجد طبقات بعد", "No layers yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
                                     } else {
-                                        layers.asReversed().forEach { layer ->
-                                            Row(
-                                                Modifier.fillMaxWidth()
-                                                    .background(
-                                                        if (layer.id == selectedLayerId) Accent.copy(alpha = 0.22f) else Color.Transparent,
-                                                        RoundedCornerShape(4.dp)
-                                                    )
-                                                    .border(
-                                                        1.dp,
-                                                        if (layer.id == selectedLayerId) Accent else PanelEdge,
-                                                        RoundedCornerShape(4.dp)
-                                                    )
-                                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                TextButton(
-                                                    onClick = { onSetLayerVisibility(layer.id, !layer.visible) },
-                                                    modifier = Modifier.size(28.dp),
-                                                    contentPadding = PaddingValues(0.dp)
+                                        Column(
+                                            Modifier.fillMaxWidth().heightIn(max = 270.dp).verticalScroll(rememberScrollState()),
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            layers.asReversed().forEach { layer ->
+                                                val layerIndex = layers.indexOfFirst { it.id == layer.id }
+                                                val selected = layer.id == selectedLayerId
+                                                Column(
+                                                    Modifier.fillMaxWidth()
+                                                        .background(
+                                                            if (selected) Accent.copy(alpha = 0.24f) else Color(0xFF202329),
+                                                            RoundedCornerShape(4.dp)
+                                                        )
+                                                        .border(
+                                                            if (selected) 2.dp else 1.dp,
+                                                            if (selected) Color(0xFF62B5FF) else PanelEdge,
+                                                            RoundedCornerShape(4.dp)
+                                                        )
+                                                        .padding(3.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(1.dp)
                                                 ) {
-                                                    Text(if (layer.visible) "◉" else "○", color = if (layer.visible) Color(0xFF8FC5FF) else MutedText)
-                                                }
-                                                Text(
-                                                    layer.name,
-                                                    color = MainText,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    maxLines = 1,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                TextButton(
-                                                    onClick = { onSelectLayer(layer.id) },
-                                                    modifier = Modifier.size(28.dp),
-                                                    contentPadding = PaddingValues(0.dp)
-                                                ) {
-                                                    Text(if (layer.id == selectedLayerId) "●" else "○", color = Accent)
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        TextButton(
+                                                            onClick = { onSelectLayer(layer.id) },
+                                                            modifier = Modifier.weight(1f),
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) {
+                                                            Text(
+                                                                (if (selected) "● " else "") + layer.name,
+                                                                color = if (selected) Color(0xFF9BD0FF) else MainText,
+                                                                maxLines = 1,
+                                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                                                style = MaterialTheme.typography.labelSmall
+                                                            )
+                                                        }
+                                                        TextButton(
+                                                            onClick = { onToggleLayerVisibility(layer.id, !layer.visible) },
+                                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                                                        ) {
+                                                            Text(if (layer.visible) "◉" else "○", color = MutedText)
+                                                        }
+                                                        TextButton(
+                                                            onClick = { onToggleLayerLock(layer.id, !layer.locked) },
+                                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                                                        ) {
+                                                            Text(if (layer.locked) "🔒" else "🔓", color = if (layer.locked) Color(0xFFFFC66D) else MutedText)
+                                                        }
+                                                    }
+                                                    Row(
+                                                        Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                    ) {
+                                                        TextButton(
+                                                            onClick = { onMoveLayer(layer.id, 1) },
+                                                            enabled = layerIndex < layers.lastIndex,
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) { Text("↑", color = MutedText) }
+                                                        TextButton(
+                                                            onClick = { onMoveLayer(layer.id, -1) },
+                                                            enabled = layerIndex > 0,
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) { Text("↓", color = MutedText) }
+                                                        TextButton(
+                                                            onClick = { onDeleteLayer(layer.id) },
+                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        ) { Text("×", color = Color(0xFFFF8585)) }
+                                                        Spacer(Modifier.weight(1f))
+                                                        Text(
+                                                            layer.kind.name,
+                                                            color = MutedText,
+                                                            style = MaterialTheme.typography.labelSmall
+                                                        )
+                                                    }
                                                 }
                                             }
+                                        }
+                                        val selectedLayer = layers.firstOrNull { it.id == selectedLayerId }
+                                        if (selectedLayer != null) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(label("العتامة", "Opacity"), color = MainText, style = MaterialTheme.typography.labelSmall)
+                                                Spacer(Modifier.weight(1f))
+                                                Text("${(selectedLayer.opacity * 100).toInt()}%", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                            }
+                                            Slider(
+                                                value = selectedLayer.opacity,
+                                                onValueChange = { onLayerOpacityChange(selectedLayer.id, it) },
+                                                onValueChangeFinished = onLayerOpacityFinish,
+                                                enabled = !selectedLayer.locked
+                                            )
                                         }
                                     }
                                 }
                             }
                             if (showProperties) {
                                 PanelCard(label("الخصائص", "Properties")) {
-                                    AdjustmentControl(label("الإضاءة", "Brightness"), brightness, -1f..1f, bitmap != null, onBrightnessChange, onAdjustmentStart, onAdjustmentFinish)
-                                    AdjustmentControl(label("التباين", "Contrast"), contrast, 0f..2f, bitmap != null, onContrastChange, onAdjustmentStart, onAdjustmentFinish)
-                                    AdjustmentControl(label("التشبع", "Saturation"), saturation, 0f..2f, bitmap != null, onSaturationChange, onAdjustmentStart, onAdjustmentFinish)
+                                    AdjustmentControl(label("الإضاءة", "Brightness"), brightness, -1f..1f, canAdjustSelectedLayer, onBrightnessChange, onAdjustmentStart, onAdjustmentFinish)
+                                    AdjustmentControl(label("التباين", "Contrast"), contrast, 0f..2f, canAdjustSelectedLayer, onContrastChange, onAdjustmentStart, onAdjustmentFinish)
+                                    AdjustmentControl(label("التشبع", "Saturation"), saturation, 0f..2f, canAdjustSelectedLayer, onSaturationChange, onAdjustmentStart, onAdjustmentFinish)
                                 }
                             }
                             if (showColorPanel) {
@@ -265,10 +425,145 @@ fun EditorScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(status, color = MutedText, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.weight(1f))
-                    Text(if (bitmap == null) "—" else "100%", color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall)
+                    Text(if (bitmap == null) "—" else "${(viewport.scale * 100).toInt()}%", color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
+    }
+
+    if (showNewDocumentDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewDocumentDialog = false },
+            title = { Text(label("مستند جديد", "New Document")) },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(label("قالب البداية", "Starting preset"), color = MainText, style = MaterialTheme.typography.labelMedium)
+                    Box {
+                        OutlinedButton(onClick = { presetMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selectedPreset.name)
+                        }
+                        DropdownMenu(
+                            expanded = presetMenuExpanded,
+                            onDismissRequest = { presetMenuExpanded = false }
+                        ) {
+                            DocumentPreset.values().forEach { preset ->
+                                DropdownMenuItem(
+                                    text = { Text(preset.name.replace('_', ' ')) },
+                                    onClick = {
+                                        selectedPreset = preset
+                                        widthText = preset.widthPx.toString()
+                                        heightText = preset.heightPx.toString()
+                                        dpiText = preset.dpi.toString()
+                                        sizeUnit = DocumentSizeUnit.PIXELS
+                                        presetMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = widthText,
+                            onValueChange = { widthText = it; documentError = null },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(label("العرض", "Width")) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                        OutlinedTextField(
+                            value = heightText,
+                            onValueChange = { heightText = it; documentError = null },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(label("الارتفاع", "Height")) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                    }
+                    Text(label("وحدة القياس", "Measurement unit"), color = MainText, style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            DocumentSizeUnit.PIXELS to "px",
+                            DocumentSizeUnit.INCHES to "in",
+                            DocumentSizeUnit.MILLIMETERS to "mm"
+                        ).forEach { (unit, caption) ->
+                            FilterChip(
+                                selected = sizeUnit == unit,
+                                onClick = { sizeUnit = unit },
+                                label = { Text(caption) }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = dpiText,
+                        onValueChange = { dpiText = it; documentError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("DPI") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Text(label("خلفية المستند", "Document background"), color = MainText, style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = backgroundArgb == 0xFFFFFFFF.toInt(),
+                            onClick = { backgroundArgb = 0xFFFFFFFF.toInt() },
+                            label = { Text(label("أبيض", "White")) }
+                        )
+                        FilterChip(
+                            selected = backgroundArgb == 0xFF000000.toInt(),
+                            onClick = { backgroundArgb = 0xFF000000.toInt() },
+                            label = { Text(label("أسود", "Black")) }
+                        )
+                        FilterChip(
+                            selected = backgroundArgb == 0x00000000,
+                            onClick = { backgroundArgb = 0x00000000 },
+                            label = { Text(label("شفاف", "Transparent")) }
+                        )
+                    }
+                    documentError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(
+                        label(
+                            "الحد الآمن الحالي: 32 مليون بكسل كحد أقصى",
+                            "Current safety limit: 32 million pixels maximum"
+                        ),
+                        color = MutedText,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val width = widthText.toDoubleOrNull()
+                    val height = heightText.toDoubleOrNull()
+                    val dpi = dpiText.toIntOrNull()
+                    if (width == null || height == null || dpi == null) {
+                        documentError = label("أدخل أرقامًا صحيحة للأبعاد وDPI", "Enter valid numeric dimensions and DPI")
+                    } else {
+                        try {
+                            val spec = DocumentSpec.fromPhysicalSize(
+                                width = width,
+                                height = height,
+                                unit = sizeUnit,
+                                dpi = dpi,
+                                backgroundArgb = backgroundArgb
+                            )
+                            viewport = CanvasViewport()
+                            onCreateDocument(spec)
+                            showNewDocumentDialog = false
+                        } catch (error: IllegalArgumentException) {
+                            documentError = error.message ?: label("إعدادات المستند غير صالحة", "Invalid document settings")
+                        }
+                    }
+                }) { Text(label("إنشاء", "Create")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewDocumentDialog = false }) { Text(label("إلغاء", "Cancel")) }
+            }
+        )
     }
 }
 
