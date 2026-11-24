@@ -35,6 +35,16 @@ jobs:
       - name: Run unit tests
         run: gradle testDebugUnitTest
 
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoEditor-unit-test-reports
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+
       - name: Build debug APK
         run: gradle assembleDebug
 
