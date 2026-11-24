@@ -61,3 +61,14 @@
 - اقرأ هذه الوثيقة قبل أي تعديل.
 - أضف نتيجة الجلسة هنا بعد اكتمالها.
 - لا تدّعِ عملاً في الخلفية بين الجلسات.
+
+
+### 2026-11-24 — قراءة تقرير CI بعد إضافة رفع التقارير
+- HEAD المفحوص: `fb119f87d7e4f02df93c29d80089ce7ccc3aadde`.
+- PR #23 ما زال مفتوحاً ومسودة وغير مدموج؛ GitHub أعاد mergeable=true في هذا الفحص.
+- تشغيل Android build: `45386659151`، النتيجة failure.
+- خطوة `Upload unit test reports` نجحت، وأنتجت artifact باسم `PhotoEditor-unit-test-reports` (ID: `14916222170`). هذا يثبت أن تعديل workflow لجمع التقارير يعمل.
+- تقرير JUnit: إجمالي 47 اختباراً عبر الفئات الثماني؛ فشل واحد فقط، ونجحت بقية الاختبارات الـ46.
+- الفشل الوحيد: `BitmapLayerCompositorTest.halfOpacityBlendsTopLayerWithOpaqueBackground` عند السطر 83. القيمة الفعلية للبكسل `-65536` (أحمر خالص: R=255) بدلاً من المزج المتوقع (R≈127, B≈128). لا يوجد دليل من التقرير وحده يحدد هل السبب في سلوك Canvas داخل Robolectric legacy أم في كود compositor؛ لا يجوز افتراض أحدهما.
+- خطوة `Build debug APK` تم تخطيها لأن الاختبارات فشلت؛ لا يوجد APK من هذا التشغيل.
+- القرار: عدم تغيير compositor أو إضعاف اختبار الشفافية الآن. الخطوة التالية تجربة تشخيصية صغيرة تفصل سلوك `Canvas.drawBitmap` مع `Paint.alpha` في بيئة Robolectric عن سلوك compositor، ثم اختيار إصلاح مثبت. لا نكرر `GraphicsMode.NATIVE` قبل حل سبب تنزيل MavenArtifactFetcher أو توفير الاعتماد في CI.
