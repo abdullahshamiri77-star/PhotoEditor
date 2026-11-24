@@ -223,28 +223,50 @@ fun EditorScreen(
                         } else {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
-                                contentDescription = label("معاينة المستند", "Document preview"),
+                                contentDescription = label("معاينة مساحة العمل", "Canvas preview"),
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .graphicsLayer {
-                                        scaleX = latestViewport.scale
-                                        scaleY = latestViewport.scale
-                                        translationX = latestViewport.offsetX
-                                        translationY = latestViewport.offsetY
+                                        scaleX = viewport.scale
+                                        scaleY = viewport.scale
+                                        translationX = viewport.offsetX
+                                        translationY = viewport.offsetY
                                     }
-                                    .pointerInput(bitmap) {
-                                        detectTransformGestures { _, pan, zoom, _ ->
-                                            viewport = latestViewport.transform(zoom, pan.x, pan.y)
+                                    .pointerInput(Unit) {
+                                        val centerX = size.width / 2f
+                                        val centerY = size.height / 2f
+                                        detectTransformGestures { centroid, pan, zoom, _ ->
+                                            viewport = latestViewport.transform(
+                                                zoomFactor = zoom,
+                                                panX = pan.x,
+                                                panY = pan.y,
+                                                pivotX = centroid.x - centerX,
+                                                pivotY = centroid.y - centerY
+                                            )
                                         }
-                                    },
+                                    }
+                                    .border(1.dp, Color(0xFF596170)),
                                 contentScale = ContentScale.Fit
                             )
                             Row(
-                                Modifier.align(Alignment.BottomCenter).background(Color(0xCC17191E), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+                                Modifier.align(Alignment.TopEnd)
+                                    .background(Color(0xDD17191E), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("${bitmap.width} × ${bitmap.height}", color = MainText, style = MaterialTheme.typography.labelSmall)
-                                Spacer(Modifier.width(8.dp))
+                                TextButton(
+                                    onClick = { viewport = viewport.zoomBy(0.8f) },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text("−", color = MainText) }
+                                Text(
+                                    "${(viewport.scale * 100).toInt()}%",
+                                    color = MainText,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                TextButton(
+                                    onClick = { viewport = viewport.zoomBy(1.25f) },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) { Text("+", color = MainText) }
                                 TextButton(
                                     onClick = { viewport = viewport.reset() },
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
