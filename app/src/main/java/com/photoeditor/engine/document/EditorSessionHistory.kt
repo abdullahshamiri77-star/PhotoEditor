@@ -22,6 +22,10 @@ class EditorSessionHistory(
     var lastRecordSkipped: Boolean = false
         private set
 
+    /** True when undo/redo succeeded but its opposite-direction snapshot could not be retained. */
+    var lastTransitionSkipped: Boolean = false
+        private set
+
     val canUndo: Boolean get() = undoStack.isNotEmpty()
     val canRedo: Boolean get() = redoStack.isNotEmpty()
     val snapshotCount: Int get() = undoStack.size + redoStack.size
@@ -34,6 +38,7 @@ class EditorSessionHistory(
      */
     fun record(current: EditorSession): Boolean {
         lastRecordSkipped = false
+        lastTransitionSkipped = false
         recycleAll(redoStack)
 
         val estimatedBytes = estimateBytes(current)
@@ -76,51 +81,51 @@ class EditorSessionHistory(
         }
     }
 
+    /**
+     * Restores the previous state even when the current state is too large to
+     * retain for redo. In that case redo history is cleared rather than making
+     * undo itself fail or allowing the user to skip over an intermediate state.
+     */
     fun undo(current: EditorSession): EditorSession? {
+        lastTransitionSkipped = false
         if (undoStack.isEmpty()) return null
-        val currentBytes = estimateBytes(current)
-        if (currentBytes > maxBytes.coerceAtLeast(0L)) return null
-        val currentCopy = try {
-            copySession(current)
-        } catch (_: OutOfMemoryError) {
-            return null
-        } catch (_: RuntimeException) {
-            return null
-        }
-        val copiedBytes = estimateBytes(currentCopy)
-        if (copiedBytes > maxBytes.coerceAtLeast(0L)) {
-            recycleSession(currentCopy)
-            return null
-        }
+
+        val currentCopy = copyIfWithinBudget(current)
         val restored = undoStack.removeLast()
-        retainedBytes -= estimateBytes(restored)
-        redoStack.addLast(currentCopy)
-        retainedBytes += copiedBytes
-        trimOldSnapshots(preserveNewestRedo = true)
+        retainedBytes = (retainedBytes - estimateBytes(restored)).coerceAtLeast(0L)
+
+        if (currentCopy == null) {
+            recycleAll(redoStack)
+            lastTransitionSkipped = true
+        } else {
+            redoStack.addLast(currentCopy)
+            retainedBytes += estimateBytes(currentCopy)
+            trimOldSnapshots(preserveNewestRedo = true)
+        }
         return restored
     }
 
+    /**
+     * Restores the next state even when the current state is too large to
+     * retain for undo. In that case undo history is cleared to preserve a
+     * truthful, contiguous history rather than skipping an intermediate state.
+     */
     fun redo(current: EditorSession): EditorSession? {
+        lastTransitionSkipped = false
         if (redoStack.isEmpty()) return null
-        val currentBytes = estimateBytes(current)
-        if (currentBytes > maxBytes.coerceAtLeast(0L)) return null
-        val currentCopy = try {
-            copySession(current)
-        } catch (_: OutOfMemoryError) {
-            return null
-        } catch (_: RuntimeException) {
-            return null
-        }
-        val copiedBytes = estimateBytes(currentCopy)
-        if (copiedBytes > maxBytes.coerceAtLeast(0L)) {
-            recycleSession(currentCopy)
-            return null
-        }
+
+        val currentCopy = copyIfWithinBudget(current)
         val restored = redoStack.removeLast()
-        retainedBytes -= estimateBytes(restored)
-        undoStack.addLast(currentCopy)
-        retainedBytes += copiedBytes
-        trimOldSnapshots(preserveNewestUndo = true)
+        retainedBytes = (retainedBytes - estimateBytes(restored)).coerceAtLeast(0L)
+
+        if (currentCopy == null) {
+            recycleAll(undoStack)
+            lastTransitionSkipped = true
+        } else {
+            undoStack.addLast(currentCopy)
+            retainedBytes += estimateBytes(currentCopy)
+            trimOldSnapshots(preserveNewestUndo = true)
+        }
         return restored
     }
 
@@ -130,12 +135,33 @@ class EditorSessionHistory(
         recycleAll(redoStack)
         retainedBytes = 0L
         lastRecordSkipped = false
+        lastTransitionSkipped = false
+    }
+
+    private fun copyIfWithinBudget(session: EditorSession): EditorSession? {
+        val budget = maxBytes.coerceAtLeast(0L)
+        if (estimateBytes(session) > budget) return null
+        return try {
+            copySession(session).also { snapshot ->
+                if (estimateBytes(snapshot) > budget) {
+                    recycleSession(snapshot)
+                    return null
+                }
+            }
+        } catch (_: OutOfMemoryError) {
+            null
+        } catch (_: RuntimeException) {
+            null
+        }
     }
 
     private fun estimateBytes(session: EditorSession): Long =
         session.bitmapLayers.values.fold(0L) { total, bitmap ->
             if (bitmap.isRecycled) total
-            else total + bitmap.allocationByteCount.toLong()
+            else {
+                val bytes = bitmap.allocationByteCount.toLong()
+                if (Long.MAX_VALUE - total < bytes) Long.MAX_VALUE else total + bytes
+            }
         }
 
     private fun copySession(session: EditorSession): EditorSession {
