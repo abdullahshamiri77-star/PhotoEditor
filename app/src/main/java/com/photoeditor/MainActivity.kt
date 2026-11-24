@@ -1,7 +1,6 @@
 package com.photoeditor
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,6 +17,7 @@ import com.photoeditor.engine.document.DocumentSpec
 import com.photoeditor.engine.document.EditorSession
 import com.photoeditor.engine.document.EditorSessionHistory
 import com.photoeditor.engine.document.LayerTransform
+import com.photoeditor.engine.document.ImageBitmapDecoder
 import com.photoeditor.ui.EditorScreen
 import java.util.UUID
 import kotlin.math.min
@@ -88,9 +88,12 @@ private fun PhotoEditorApp() {
     fun recordHistory(active: EditorSession): Boolean {
         val recorded = history.record(active)
         if (!recorded) {
+            // Do not keep older snapshots across an unrecorded edit: doing so
+            // would make the next Undo jump over a state the user cannot restore.
+            history.clear()
             status = msg(
-                "تم تنفيذ العملية، لكن حجم الصورة تجاوز حد ذاكرة التراجع؛ لن تتوفر لها خطوة تراجع",
-                "Edit applied, but this image exceeds the undo memory budget; this action cannot be undone"
+                "تم تنفيذ العملية، لكن لا يمكن حفظ لقطة تراجع لهذه الصورة؛ مُسح السجل القديم لمنع تراجع غير صحيح",
+                "Edit applied, but this image cannot be snapshotted; older history was cleared to prevent an incorrect undo"
             )
         }
         return recorded
@@ -188,66 +191,84 @@ private fun PhotoEditorApp() {
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
+            var importedBitmap: Bitmap? = null
+            var originalCopy: Bitmap? = null
+            var ownershipTransferred = false
             try {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val decoded = BitmapFactory.decodeStream(stream)
-                    if (decoded != null) {
-                        val safeBitmap = decoded.copy(Bitmap.Config.ARGB_8888, false)
-                        if (decoded !== safeBitmap && !decoded.isRecycled) decoded.recycle()
-                        val active = session
-                        if (active == null) {
-                            val firstId = UUID.randomUUID().toString()
-                            val first = EditorSession.fromBitmap(
-                                safeBitmap,
-                                name = "Background",
-                                id = firstId
-                            )
-                            originalBitmaps = mapOf(
-                                firstId to safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                            )
-                            history.clear()
-                            finishAdjustment()
-                            renderSession(first)
-                            status = msg("تم إنشاء المستند وفتح الصورة كطبقة خلفية", "Document created with the image as its background layer")
-                        } else {
-                            recordHistory(active)
-                            val layerId = UUID.randomUUID().toString()
-                            val scale = min(
-                                1f,
-                                min(
-                                    active.document.width.toFloat() / safeBitmap.width,
-                                    active.document.height.toFloat() / safeBitmap.height
-                                )
-                            )
-                            val x = (active.document.width - safeBitmap.width * scale) / 2f
-                            val y = (active.document.height - safeBitmap.height * scale) / 2f
-                            val next = active.addBitmapLayer(
-                                bitmap = safeBitmap,
-                                name = "Image ${active.document.layers.size + 1}",
-                                id = layerId,
-                                transform = LayerTransform(
-                                    x = x,
-                                    y = y,
-                                    scaleX = scale,
-                                    scaleY = scale
-                                )
-                            )
-                            originalBitmaps = originalBitmaps + (
-                                layerId to safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                            )
-                            finishAdjustment()
-                            renderSession(next)
-                            status = msg("تمت إضافة الصورة كطبقة مستقلة", "Image added as an independent layer")
-                        }
+                importedBitmap = ImageBitmapDecoder.decode(context.contentResolver, uri)
+                val safeBitmap = importedBitmap
+                if (safeBitmap == null) {
+                    status = msg("تعذر قراءة الصورة أو أن أبعادها غير صالحة", "Could not decode the selected image or its dimensions are invalid")
+                } else {
+                    val active = session
+                    val layerId = UUID.randomUUID().toString()
+                    originalCopy = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                        ?: error("Could not create the original-image snapshot")
+
+                    if (active == null) {
+                        val first = EditorSession.fromBitmap(
+                            safeBitmap,
+                            name = "Background",
+                            id = layerId
+                        )
+                        history.clear()
+                        finishAdjustment()
+                        originalBitmaps = mapOf(layerId to originalCopy)
+                        originalCopy = null
+                        ownershipTransferred = true
+                        renderSession(first)
+                        status = msg(
+                            "تم إنشاء المستند وفتح الصورة كطبقة خلفية",
+                            "Document created with the image as its background layer"
+                        )
                     } else {
-                        status = msg("تعذر قراءة الصورة المختارة", "Could not read the selected image")
+                        recordHistory(active)
+                        val scale = min(
+                            1f,
+                            min(
+                                active.document.width.toFloat() / safeBitmap.width,
+                                active.document.height.toFloat() / safeBitmap.height
+                            )
+                        )
+                        val x = (active.document.width - safeBitmap.width * scale) / 2f
+                        val y = (active.document.height - safeBitmap.height * scale) / 2f
+                        val next = active.addBitmapLayer(
+                            bitmap = safeBitmap,
+                            name = "Image ${active.document.layers.size + 1}",
+                            id = layerId,
+                            transform = LayerTransform(
+                                x = x,
+                                y = y,
+                                scaleX = scale,
+                                scaleY = scale
+                            )
+                        )
+                        originalBitmaps = originalBitmaps + (layerId to originalCopy)
+                        originalCopy = null
+                        finishAdjustment()
+                        ownershipTransferred = true
+                        renderSession(next)
+                        status = msg(
+                            "تمت إضافة الصورة كطبقة مستقلة",
+                            "Image added as an independent layer"
+                        )
                     }
                 }
+            } catch (error: OutOfMemoryError) {
+                status = msg(
+                    "لا توجد ذاكرة كافية لفتح الصورة؛ جرّب صورة أصغر",
+                    "Not enough memory to open this image; try a smaller image"
+                )
             } catch (error: Exception) {
                 status = msg(
                     "تعذر فتح الصورة: ${error.localizedMessage ?: "خطأ غير معروف"}",
                     "Could not open image: ${error.localizedMessage ?: "Unknown error"}"
                 )
+            } finally {
+                originalCopy?.let { if (!it.isRecycled) it.recycle() }
+                if (!ownershipTransferred) {
+                    importedBitmap?.let { if (!it.isRecycled) it.recycle() }
+                }
             }
         }
     }
@@ -282,7 +303,9 @@ private fun PhotoEditorApp() {
         val previous = history.undo(active)
         if (previous != null) {
             renderSession(previous)
-            status = msg("تم التراجع", "Undo completed")
+            status = if (history.lastTransitionSkipped) {
+                msg("تم التراجع، لكن تعذر الاحتفاظ بنسخة للإعادة بسبب حد الذاكرة؛ مُسح سجل الإعادة", "Undo completed, but redo could not be retained within the memory budget; redo history was cleared")
+            } else msg("تم التراجع", "Undo completed")
         }
     }
 
@@ -292,7 +315,9 @@ private fun PhotoEditorApp() {
         val next = history.redo(active)
         if (next != null) {
             renderSession(next)
-            status = msg("تمت إعادة العملية", "Redo completed")
+            status = if (history.lastTransitionSkipped) {
+                msg("تمت الإعادة، لكن تعذر الاحتفاظ بنسخة للتراجع بسبب حد الذاكرة؛ مُسح سجل التراجع", "Redo completed, but undo could not be retained within the memory budget; undo history was cleared")
+            } else msg("تمت إعادة العملية", "Redo completed")
         }
     }
 
