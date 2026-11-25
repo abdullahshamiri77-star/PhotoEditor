@@ -55,6 +55,48 @@ class EditorDocumentTest {
     }
 
     @Test
+    fun movingLayerByStableIdPreservesSelectionAndEveryLayerTransform() {
+        val bottomTransform = LayerTransform(x = 12f, y = 8f, scaleX = 1.2f, scaleY = 1.2f)
+        val middleTransform = LayerTransform(x = 40f, y = 25f, scaleX = 0.7f, scaleY = 0.9f)
+        val topTransform = LayerTransform(x = 4f, y = 6f)
+        val document = EditorDocument(200, 200)
+            .addLayer(layer("bottom").copy(transform = bottomTransform))
+            .addLayer(layer("middle").copy(transform = middleTransform))
+            .addLayer(layer("top").copy(transform = topTransform))
+            .selectLayer("middle")
+
+        val reordered = document.moveLayer("middle", 2)
+
+        assertEquals(listOf("bottom", "top", "middle"), reordered.layers.map { it.id })
+        assertEquals("middle", reordered.selectedLayerId)
+        assertEquals(middleTransform, reordered.layers.last().transform)
+        assertEquals(bottomTransform, reordered.layers.first().transform)
+        assertEquals(topTransform, reordered.layers[1].transform)
+    }
+
+    @Test
+    fun lockedLayerCannotBeReorderedAndOtherLayersRemainUntouched() {
+        val document = EditorDocument(100, 100)
+            .addLayer(layer("bottom"))
+            .addLayer(layer("locked").copy(locked = true))
+            .addLayer(layer("top"))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            document.moveLayer("locked", 0)
+        }
+        assertEquals(listOf("bottom", "locked", "top"), document.layers.map { it.id })
+        assertFalse(document.layers.first { it.id == "bottom" }.locked)
+    }
+
+    @Test
+    fun movingUnknownLayerByIdIsRejected() {
+        val document = EditorDocument(100, 100).addLayer(layer("existing"))
+        assertThrows(IllegalArgumentException::class.java) {
+            document.moveLayer("missing", 0)
+        }
+    }
+
+    @Test
     fun removingSelectedLayerSelectsNearestRemainingLayer() {
         val document = EditorDocument(100, 100)
             .addLayer(layer("first"))
