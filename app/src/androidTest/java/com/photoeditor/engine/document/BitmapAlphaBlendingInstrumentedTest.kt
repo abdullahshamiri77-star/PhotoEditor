@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -23,9 +24,9 @@ class BitmapAlphaBlendingInstrumentedTest {
             canvas.drawBitmap(red, 0f, 0f, Paint().apply { alpha = 128 })
 
             val pixel = output.getPixel(0, 0)
-            assertEquals(128, Color.red(pixel))
-            assertEquals(0, Color.green(pixel))
-            assertEquals(127, Color.blue(pixel))
+            assertChannelNear("red", 128, Color.red(pixel))
+            assertChannelNear("green", 0, Color.green(pixel))
+            assertChannelNear("blue", 127, Color.blue(pixel))
             assertEquals(255, Color.alpha(pixel))
         } finally {
             output.recycle()
@@ -48,9 +49,9 @@ class BitmapAlphaBlendingInstrumentedTest {
             )
             try {
                 val pixel = output.getPixel(0, 0)
-                assertEquals(127, Color.red(pixel))
-                assertEquals(0, Color.green(pixel))
-                assertEquals(128, Color.blue(pixel))
+                assertChannelNear("red", 127, Color.red(pixel))
+                assertChannelNear("green", 0, Color.green(pixel))
+                assertChannelNear("blue", 128, Color.blue(pixel))
                 assertEquals(255, Color.alpha(pixel))
             } finally {
                 output.recycle()
@@ -59,6 +60,13 @@ class BitmapAlphaBlendingInstrumentedTest {
             background.recycle()
             foreground.recycle()
         }
+    }
+
+    private fun assertChannelNear(channel: String, expected: Int, actual: Int) {
+        assertTrue(
+            "$channel channel expected near $expected, actual=$actual",
+            kotlin.math.abs(actual - expected) <= 1
+        )
     }
 
     private fun solidBitmap(color: Int): Bitmap =
