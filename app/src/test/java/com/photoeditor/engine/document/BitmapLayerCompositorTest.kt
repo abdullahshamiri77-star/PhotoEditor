@@ -1,17 +1,43 @@
 package com.photoeditor.engine.document
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class BitmapLayerCompositorTest {
+
+    @Test
+    fun canvasHonorsPaintAlphaWhenDrawingBitmap() {
+        val output = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        val blue = solidBitmap(Color.BLUE)
+        val red = solidBitmap(Color.RED)
+        try {
+            val canvas = Canvas(output)
+            canvas.drawBitmap(blue, 0f, 0f, Paint())
+            canvas.drawBitmap(red, 0f, 0f, Paint().apply { alpha = 128 })
+
+            val pixel = output.getPixel(0, 0)
+            assertChannelNear("red", 128, Color.red(pixel))
+            assertChannelNear("green", 0, Color.green(pixel))
+            assertChannelNear("blue", 127, Color.blue(pixel))
+            assertEquals(255, Color.alpha(pixel))
+        } finally {
+            output.recycle()
+            blue.recycle()
+            red.recycle()
+        }
+    }
 
     @Test
     fun visibleBitmapLayerIdsAreReturnedBottomToTop() {
@@ -80,9 +106,9 @@ class BitmapLayerCompositorTest {
         )
         try {
             val pixel = output.getPixel(0, 0)
-            assertTrue("Expected red near 127, actual=${Color.red(pixel)}, pixel=$pixel", kotlin.math.abs(Color.red(pixel) - 127) <= 2)
-            assertTrue("Expected green near 0, actual=${Color.green(pixel)}, pixel=$pixel", kotlin.math.abs(Color.green(pixel)) <= 2)
-            assertTrue("Expected blue near 128, actual=${Color.blue(pixel)}, pixel=$pixel", kotlin.math.abs(Color.blue(pixel) - 128) <= 2)
+            assertChannelNear("red", 127, Color.red(pixel))
+            assertChannelNear("green", 0, Color.green(pixel))
+            assertChannelNear("blue", 128, Color.blue(pixel))
             assertEquals(255, Color.alpha(pixel))
         } finally {
             output.recycle()
@@ -109,6 +135,13 @@ class BitmapLayerCompositorTest {
             lockedOutput.recycle()
             bitmap.recycle()
         }
+    }
+
+    private fun assertChannelNear(channel: String, expected: Int, actual: Int) {
+        assertTrue(
+            "$channel channel expected near $expected, actual=$actual",
+            kotlin.math.abs(actual - expected) <= 1
+        )
     }
 
     private fun solidBitmap(color: Int): Bitmap =
