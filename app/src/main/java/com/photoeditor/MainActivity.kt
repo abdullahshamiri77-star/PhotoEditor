@@ -99,7 +99,7 @@ private fun PhotoEditorApp() {
         return recorded
     }
 
-    fun renderSession(next: EditorSession?) {
+    fun renderSession(next: EditorSession?): Boolean {
         val previous = session
         val nextPreview = try {
             next?.let { BitmapLayerCompositor.render(it.document, it.bitmapLayers) }
@@ -131,7 +131,7 @@ private fun PhotoEditorApp() {
             ) { bitmap ->
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
-            return
+            return false
         }
 
         session = next
@@ -152,6 +152,7 @@ private fun PhotoEditorApp() {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
+        return true
     }
 
     fun finishAdjustment() {
@@ -206,9 +207,21 @@ private fun PhotoEditorApp() {
             return
         }
         val base = adjustmentBase ?: active.bitmapLayers[layerId] ?: return
-        val adjusted = BitmapEffects.adjust(base, brightness, contrast, saturation)
-        renderSession(active.replaceBitmapPayload(layerId, adjusted))
-        status = msg("معاينة تعديلات الطبقة المحددة", "Previewing selected-layer adjustments")
+        val adjusted = try {
+            BitmapEffects.adjust(base, brightness, contrast, saturation)
+        } catch (_: OutOfMemoryError) {
+            status = msg("لا توجد ذاكرة كافية لمعاينة التعديلات", "Not enough memory to preview adjustments")
+            return
+        } catch (error: Exception) {
+            status = msg(
+                "فشل تعديل الصورة: ${error.localizedMessage ?: "خطأ"}",
+            "Adjustment failed: ${error.localizedMessage ?: "Error"}"
+            )
+            return
+        }
+        if (renderSession(active.replaceBitmapPayload(layerId, adjusted))) {
+            status = msg("معاينة تعديلات الطبقة المحددة", "Previewing selected-layer adjustments")
+        }
     }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -338,8 +351,9 @@ private fun PhotoEditorApp() {
         }
 
         recordHistory(active)
-        renderSession(active.replaceBitmapPayload(layerId, effected))
-        status = msg("تم تطبيق التأثير على الطبقة المحددة", "Effect applied to selected layer")
+        if (renderSession(active.replaceBitmapPayload(layerId, effected))) {
+            status = msg("تم تطبيق التأثير على الطبقة المحددة", "Effect applied to selected layer")
+        }
     }
 
     fun undo() {
@@ -380,8 +394,9 @@ private fun PhotoEditorApp() {
             return
         }
         recordHistory(active)
-        renderSession(active.replaceBitmapPayload(layerId, restored))
-        status = msg("تمت استعادة الصورة الأصلية للطبقة", "Selected layer restored to its original image")
+        if (renderSession(active.replaceBitmapPayload(layerId, restored))) {
+            status = msg("تمت استعادة الصورة الأصلية للطبقة", "Selected layer restored to its original image")
+        }
     }
 
     fun updateLayer(id: String, change: (com.photoeditor.engine.document.EditorDocument) -> com.photoeditor.engine.document.EditorDocument) {
