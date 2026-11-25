@@ -56,15 +56,7 @@ jobs:
           emulator-boot-timeout: 600
           disable-linux-hw-accel: false
           script: |
-            mkdir -p app/build/diagnostics
-            adb logcat -c
-            set +e
-            gradle connectedDebugAndroidTest
-            test_status=$?
-            adb logcat -d -v threadtime > app/build/diagnostics/emulator-logcat.txt
-            adb shell dumpsys activity exit-info com.photoeditor.test > app/build/diagnostics/test-process-exit-info.txt || true
-            adb shell dumpsys activity exit-info com.photoeditor > app/build/diagnostics/app-process-exit-info.txt || true
-            exit "$test_status"
+            mkdir -p app/build/diagnostics && adb logcat -c && test_status=0; gradle connectedDebugAndroidTest || test_status=$?; adb logcat -d -v threadtime > app/build/diagnostics/emulator-logcat.txt 2>/dev/null || true; adb shell dumpsys activity exit-info com.photoeditor.test > app/build/diagnostics/test-process-exit-info.txt 2>/dev/null || true; adb shell dumpsys activity exit-info com.photoeditor > app/build/diagnostics/app-process-exit-info.txt 2>/dev/null || true; exit "$test_status"
 
       - name: Upload instrumentation reports and crash diagnostics
         if: always()
