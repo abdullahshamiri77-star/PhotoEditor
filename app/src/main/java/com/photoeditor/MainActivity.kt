@@ -17,6 +17,7 @@ import com.photoeditor.engine.document.DocumentSpec
 import com.photoeditor.engine.document.EditorSession
 import com.photoeditor.engine.document.EditorSessionHistory
 import com.photoeditor.engine.document.LayerTransform
+import com.photoeditor.engine.canvas.LayerHitTester
 import com.photoeditor.engine.document.ImageBitmapDecoder
 import com.photoeditor.ui.EditorScreen
 import java.util.UUID
@@ -425,6 +426,20 @@ private fun PhotoEditorApp() {
         isArabic = isArabic,
         layers = session?.document?.layers.orEmpty(),
         selectedLayerId = session?.document?.selectedLayerId,
+        onCanvasSelectLayer = { x, y ->
+            val active = session
+            if (active != null) {
+                val sizes = active.bitmapLayers.mapValues { (_, layerBitmap) ->
+                    layerBitmap.width to layerBitmap.height
+                }
+                val hitId = LayerHitTester.findTopmost(active.document, sizes, x, y)
+                if (hitId != null && hitId != active.document.selectedLayerId) {
+                    finishAdjustment()
+                    updateLayer(hitId) { it.selectLayer(hitId) }
+                    status = msg("تم تحديد الطبقة من مساحة العمل", "Layer selected from canvas")
+                }
+            }
+        },
         onToggleLanguage = { isArabic = !isArabic },
         onOpen = { imagePicker.launch("image/*") },
         onCreateDocument = { spec ->
