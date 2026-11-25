@@ -371,11 +371,16 @@ private fun PhotoEditorApp() {
         val active = session ?: return
         val layerId = active.document.selectedLayerId ?: return
         val original = originalBitmaps[layerId] ?: return
-        recordHistory(active)
-        renderSession(active.replaceBitmapPayload(
-            layerId,
+        val restored = try {
             original.copy(Bitmap.Config.ARGB_8888, false)
-        ))
+        } catch (_: OutOfMemoryError) {
+            null
+        } ?: run {
+            status = msg("لا توجد ذاكرة كافية لاستعادة الصورة الأصلية", "Not enough memory to restore the original image")
+            return
+        }
+        recordHistory(active)
+        renderSession(active.replaceBitmapPayload(layerId, restored))
         status = msg("تمت استعادة الصورة الأصلية للطبقة", "Selected layer restored to its original image")
     }
 
