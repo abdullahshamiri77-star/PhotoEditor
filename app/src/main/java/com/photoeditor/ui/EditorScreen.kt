@@ -6,6 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.consume
+import kotlin.math.abs
+import kotlin.math.sign
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
@@ -301,6 +305,24 @@ fun EditorScreen(
                                                 val selected = layer.id == selectedLayerId
                                                 Column(
                                                     Modifier.fillMaxWidth()
+                                                        .pointerInput(layer.id) {
+                                                            var accumulatedDrag = 0f
+                                                            val reorderThreshold = 48.dp.toPx()
+                                                            detectDragGestures(
+                                                                onDragEnd = { accumulatedDrag = 0f },
+                                                                onDragCancel = { accumulatedDrag = 0f }
+                                                            ) { change, dragAmount ->
+                                                                change.consume()
+                                                                accumulatedDrag += dragAmount.y
+                                                                while (abs(accumulatedDrag) >= reorderThreshold) {
+                                                                    // The visible list is reversed (top layer first), while the
+                                                                    // document model is bottom-to-top.
+                                                                    val direction = if (accumulatedDrag < 0f) 1 else -1
+                                                                    onMoveLayer(layer.id, direction)
+                                                                    accumulatedDrag -= sign(accumulatedDrag) * reorderThreshold
+                                                                }
+                                                            }
+                                                        }
                                                         .background(
                                                             if (selected) Accent.copy(alpha = 0.24f) else Color(0xFF202329),
                                                             RoundedCornerShape(4.dp)
