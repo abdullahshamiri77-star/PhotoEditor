@@ -99,6 +99,40 @@ class EditorSessionHistoryTest {
         }
     }
 
+    @Test
+    fun failedOversizedRecordPreservesRedoSnapshot() {
+        val red = solidBitmap(1, 1, Color.RED)
+        val green = solidBitmap(1, 1, Color.GREEN)
+        val oversized = solidBitmap(2, 2, Color.BLUE)
+        val initial = EditorSession.fromBitmap(red, id = "layer")
+        val changed = initial.replaceBitmapPayload("layer", green)
+        val tooLarge = initial.replaceBitmapPayload("layer", oversized)
+        val history = EditorSessionHistory(capacity = 4, maxBytes = 8L)
+
+        try {
+            assertTrue(history.record(initial))
+            val undone = history.undo(changed)
+            assertNotNull(undone)
+            assertTrue(history.canRedo)
+            val bytesBefore = history.retainedBitmapBytes
+
+            assertFalse(history.record(tooLarge))
+            assertTrue("redo state must survive a rejected record", history.canRedo)
+            assertEquals(1, history.snapshotCount)
+            assertEquals(bytesBefore, history.retainedBitmapBytes)
+            assertTrue(history.lastRecordSkipped)
+
+            val redone = history.redo(undone!!)
+            assertNotNull(redone)
+            assertEquals(Color.GREEN, redone!!.bitmapLayers.getValue("layer").getPixel(0, 0))
+        } finally {
+            history.clear()
+            red.recycle()
+            green.recycle()
+            oversized.recycle()
+        }
+    }
+
     private fun solidBitmap(width: Int, height: Int, color: Int): Bitmap =
         Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
             eraseColor(color)
