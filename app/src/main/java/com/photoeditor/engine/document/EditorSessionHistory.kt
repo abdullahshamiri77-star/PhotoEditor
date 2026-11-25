@@ -39,46 +39,43 @@ class EditorSessionHistory(
     fun record(current: EditorSession): Boolean {
         lastRecordSkipped = false
         lastTransitionSkipped = false
-        recycleAll(redoStack)
 
-        val estimatedBytes = estimateBytes(current)
         val budget = maxBytes.coerceAtLeast(0L)
-        if (estimatedBytes > budget) {
+        if (estimateBytes(current) > budget) {
             lastRecordSkipped = true
             return false
         }
 
+        // Snapshot first: if allocation/copy fails, existing undo and redo remain intact.
+        val snapshot = try {
+            copySession(current)
+        } catch (_: OutOfMemoryError) {
+            lastRecordSkipped = true
+            return false
+        } catch (_: RuntimeException) {
+            lastRecordSkipped = true
+            return false
+        }
+
+        val actualBytes = estimateBytes(snapshot)
+        if (actualBytes > budget) {
+            recycleSession(snapshot)
+            lastRecordSkipped = true
+            return false
+        }
+
+        // Only a valid snapshot permits destructive history changes.
+        recycleAll(redoStack)
         while (undoStack.isNotEmpty() &&
             (undoStack.size >= capacity.coerceAtLeast(1) ||
-                retainedBytes > budget - estimatedBytes)
+                retainedBytes > budget - actualBytes)
         ) {
             removeAndRecycleFirst(undoStack)
         }
 
-        return try {
-            val snapshot = copySession(current)
-            val actualBytes = estimateBytes(snapshot)
-            if (actualBytes > budget) {
-                recycleSession(snapshot)
-                lastRecordSkipped = true
-                return false
-            }
-            while (undoStack.isNotEmpty() &&
-                (undoStack.size >= capacity.coerceAtLeast(1) ||
-                    retainedBytes > budget - actualBytes)
-            ) {
-                removeAndRecycleFirst(undoStack)
-            }
-            undoStack.addLast(snapshot)
-            retainedBytes += actualBytes
-            true
-        } catch (_: OutOfMemoryError) {
-            lastRecordSkipped = true
-            false
-        } catch (_: RuntimeException) {
-            lastRecordSkipped = true
-            false
-        }
+        undoStack.addLast(snapshot)
+        retainedBytes += actualBytes
+        return true
     }
 
     /**
