@@ -3,6 +3,7 @@ package com.photoeditor.ui
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -50,6 +51,7 @@ private val MutedText = Color(0xFFAAB2C0)
 
 private fun centerForCanvas(value: Float): Float = value / 2f
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
@@ -311,9 +313,9 @@ fun EditorScreen(
                                             )
                                             if (fitScale <= 0f) return@detectTapGestures
                                             val localX = centerForCanvas(size.width.toFloat()) +
-                                                (position.x - centerForCanvas(size.width) - viewport.offsetX) / viewport.scale
+                                                (position.x - centerForCanvas(size.width.toFloat()) - viewport.offsetX) / viewport.scale
                                             val localY = centerForCanvas(size.height.toFloat()) +
-                                                (position.y - centerForCanvas(size.height) - viewport.offsetY) / viewport.scale
+                                                (position.y - centerForCanvas(size.height.toFloat()) - viewport.offsetY) / viewport.scale
                                             val docX = (localX - (size.width - documentWidth * fitScale) / 2f) / fitScale
                                             val docY = (localY - (size.height - documentHeight * fitScale) / 2f) / fitScale
                                             onCanvasSelectLayer(docX, docY)
