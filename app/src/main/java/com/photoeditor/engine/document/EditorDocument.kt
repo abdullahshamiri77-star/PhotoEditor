@@ -84,14 +84,27 @@ data class EditorDocument(
         return copy(selectedLayerId = id)
     }
 
-    fun moveLayer(fromIndex: Int, toIndex: Int): EditorDocument {
-        require(fromIndex in layers.indices) { "Source layer index is out of range" }
+    /**
+     * Reorder a layer by its stable identity, never by a UI-captured list index.
+     * Locked layers cannot be reordered. The selected layer remains selected by ID.
+     */
+    fun moveLayer(id: String, toIndex: Int): EditorDocument {
+        val fromIndex = layers.indexOfFirst { it.id == id }
+        require(fromIndex >= 0) { "Layer does not belong to this document" }
         require(toIndex in layers.indices) { "Destination layer index is out of range" }
+        require(!layers[fromIndex].locked) { "A locked layer cannot be reordered" }
         if (fromIndex == toIndex) return this
         val updated = layers.toMutableList()
         val moved = updated.removeAt(fromIndex)
         updated.add(toIndex, moved)
         return copy(layers = updated)
+    }
+
+    /** Compatibility overload for callers that already have validated indices. */
+    fun moveLayer(fromIndex: Int, toIndex: Int): EditorDocument {
+        require(fromIndex in layers.indices) { "Source layer index is out of range" }
+        val id = layers[fromIndex].id
+        return moveLayer(id, toIndex)
     }
 
     fun updateLayer(id: String, transform: (EditorLayer) -> EditorLayer): EditorDocument {
