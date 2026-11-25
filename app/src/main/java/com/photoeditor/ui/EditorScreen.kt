@@ -10,7 +10,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.consume
 import kotlin.math.abs
 import kotlin.math.sign
 import androidx.compose.ui.draw.clipToBounds
@@ -307,13 +306,13 @@ fun EditorScreen(
                                             val documentWidth = bitmap?.width ?: return@detectTapGestures
                                             val documentHeight = bitmap?.height ?: return@detectTapGestures
                                             val fitScale = minOf(
-                                                size.width / documentWidth.toFloat(),
-                                                size.height / documentHeight.toFloat()
+                                                size.width.toFloat() / documentWidth.toFloat(),
+                                                size.height.toFloat() / documentHeight.toFloat()
                                             )
                                             if (fitScale <= 0f) return@detectTapGestures
-                                            val localX = centerForCanvas(size.width) +
+                                            val localX = centerForCanvas(size.width.toFloat()) +
                                                 (position.x - centerForCanvas(size.width) - viewport.offsetX) / viewport.scale
-                                            val localY = centerForCanvas(size.height) +
+                                            val localY = centerForCanvas(size.height.toFloat()) +
                                                 (position.y - centerForCanvas(size.height) - viewport.offsetY) / viewport.scale
                                             val docX = (localX - (size.width - documentWidth * fitScale) / 2f) / fitScale
                                             val docY = (localY - (size.height - documentHeight * fitScale) / 2f) / fitScale
