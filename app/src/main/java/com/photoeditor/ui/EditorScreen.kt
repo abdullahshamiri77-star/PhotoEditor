@@ -520,10 +520,10 @@ fun EditorScreen(
                                                         enabled = !selectedLayer.locked
                                                     )
                                                 }
-                                                transformSlider("X", selectedLayer.transform.x, -bitmap.width.toFloat()..bitmap.width.toFloat()) {
+                                                transformSlider("X", selectedLayer.transform.x, -(bitmap?.width?.toFloat() ?: 1f)..(bitmap?.width?.toFloat() ?: 1f)) {
                                                     selectedLayer.transform.copy(x = it)
                                                 }
-                                                transformSlider("Y", selectedLayer.transform.y, -bitmap.height.toFloat()..bitmap.height.toFloat()) {
+                                                transformSlider("Y", selectedLayer.transform.y, -(bitmap?.height?.toFloat() ?: 1f)..(bitmap?.height?.toFloat() ?: 1f)) {
                                                     selectedLayer.transform.copy(y = it)
                                                 }
                                                 transformSlider("Scale X", selectedLayer.transform.scaleX, 0.1f..5f) {
