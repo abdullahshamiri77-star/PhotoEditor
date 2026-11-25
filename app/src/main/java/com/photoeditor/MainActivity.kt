@@ -460,6 +460,26 @@ private fun PhotoEditorApp() {
             layerMoveHistoryLayerId = null
             status = msg("تم تحريك الطبقة المحددة", "Selected layer moved")
         },
+        onLayerTransformStart = { id ->
+            if (layerMoveHistoryLayerId != id) {
+                val active = session
+                val layer = active?.document?.layers?.firstOrNull { it.id == id }
+                if (active != null && layer != null && !layer.locked && active.bitmapLayers.containsKey(id)) {
+                    finishAdjustment()
+                    recordHistory(active)
+                    layerMoveHistoryLayerId = id
+                }
+            }
+        },
+        onLayerTransformChange = { id, transform ->
+            val active = session
+            if (active != null && layerMoveHistoryLayerId == id) {
+                updateLayer(id) { document ->
+                    document.updateLayer(id) { current -> current.copy(transform = transform) }
+                }
+            }
+        },
+        onLayerTransformFinish = { layerMoveHistoryLayerId = null },
         onCanvasSelectLayer = { x, y ->
             val active = session
             if (active != null) {
