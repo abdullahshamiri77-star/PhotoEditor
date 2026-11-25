@@ -56,6 +56,7 @@ private fun PhotoEditorApp() {
     val history = remember { EditorSessionHistory(12) }
     var adjustmentInProgress by remember { mutableStateOf(false) }
     var opacityAdjustmentLayerId by remember { mutableStateOf<String?>(null) }
+    var layerMoveHistoryLayerId by remember { mutableStateOf<String?>(null) }
 
     // Keep disposal attached to the latest Compose state, not the values
     // captured when this screen was first composed.
@@ -426,6 +427,36 @@ private fun PhotoEditorApp() {
         isArabic = isArabic,
         layers = session?.document?.layers.orEmpty(),
         selectedLayerId = session?.document?.selectedLayerId,
+        canMoveSelectedLayer = canAdjustSelectedLayer,
+        onLayerMoveStart = { id ->
+            val active = session
+            val layer = active?.document?.layers?.firstOrNull { it.id == id }
+            if (active != null && layer != null && !layer.locked && active.bitmapLayers.containsKey(id)) {
+                finishAdjustment()
+                recordHistory(active)
+                layerMoveHistoryLayerId = id
+            }
+        },
+        onLayerMoveBy = { id, deltaX, deltaY ->
+            val active = session
+            if (active != null && layerMoveHistoryLayerId == id) {
+                val layer = active.document.layers.firstOrNull { it.id == id }
+                if (layer != null && !layer.locked) {
+                    updateLayer(id) { document ->
+                        document.updateLayer(id) { current ->
+                            current.copy(transform = current.transform.copy(
+                                x = current.transform.x + deltaX,
+                                y = current.transform.y + deltaY
+                            ))
+                        }
+                    }
+                }
+            }
+        },
+        onLayerMoveFinish = {
+            layerMoveHistoryLayerId = null
+            status = msg("تم تحريك الطبقة المحددة", "Selected layer moved")
+        },
         onCanvasSelectLayer = { x, y ->
             val active = session
             if (active != null) {
