@@ -2,10 +2,17 @@ package com.photoeditor.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import kotlin.math.abs
+import kotlin.math.sign
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
@@ -13,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.photoeditor.engine.document.EditorLayer
+import com.photoeditor.engine.document.LayerTransform
 import com.photoeditor.engine.document.DocumentPreset
 import com.photoeditor.engine.document.DocumentSizeUnit
 import com.photoeditor.engine.document.DocumentSpec
@@ -23,6 +31,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -39,6 +49,9 @@ private val Accent = Color(0xFF2685E8)
 private val MainText = Color(0xFFE7EAF0)
 private val MutedText = Color(0xFFAAB2C0)
 
+private fun centerForCanvas(value: Float): Float = value / 2f
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
@@ -52,6 +65,15 @@ fun EditorScreen(
     isArabic: Boolean,
     layers: List<EditorLayer>,
     selectedLayerId: String?,
+    canMoveSelectedLayer: Boolean,
+    selectedLayerBitmapSize: Pair<Int, Int>?,
+    onLayerMoveStart: (String) -> Unit,
+    onLayerMoveBy: (String, Float, Float) -> Unit,
+    onLayerMoveFinish: () -> Unit,
+    onLayerTransformStart: (String) -> Unit,
+    onLayerTransformChange: (String, LayerTransform) -> Unit,
+    onLayerTransformFinish: () -> Unit,
+    onCanvasSelectLayer: (Float, Float) -> Unit,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
     onCreateDocument: (DocumentSpec) -> Unit,
@@ -80,6 +102,7 @@ fun EditorScreen(
     var showProperties by remember { mutableStateOf(true) }
     var showColorPanel by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var transformControlsLayerId by remember { mutableStateOf<String?>(null) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
     var showNewDocumentDialog by remember { mutableStateOf(false) }
     var presetMenuExpanded by remember { mutableStateOf(false) }
@@ -232,22 +255,111 @@ fun EditorScreen(
                                         translationX = viewport.offsetX
                                         translationY = viewport.offsetY
                                     }
-                                    .pointerInput(Unit) {
-                                        val centerX = size.width / 2f
-                                        val centerY = size.height / 2f
-                                        detectTransformGestures { centroid, pan, zoom, _ ->
-                                            viewport = latestViewport.transform(
-                                                zoomFactor = zoom,
-                                                panX = pan.x,
-                                                panY = pan.y,
-                                                pivotX = centroid.x - centerX,
-                                                pivotY = centroid.y - centerY
+                                    .pointerInput(selectedTool, selectedLayerId, canMoveSelectedLayer, bitmap?.width, bitmap?.height) {
+                                        if (selectedTool == "Move") {
+                                            var movingLayerId: String? = null
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    movingLayerId = if (canMoveSelectedLayer) selectedLayerId else null
+                                                    movingLayerId?.let(onLayerMoveStart)
+                                                },
+                                                onDragEnd = {
+                                                    if (movingLayerId != null) onLayerMoveFinish()
+                                                    movingLayerId = null
+                                                },
+                                                onDragCancel = {
+                                                    if (movingLayerId != null) onLayerMoveFinish()
+                                                    movingLayerId = null
+                                                }
+                                            ) { change, dragAmount ->
+                                                change.consume()
+                                                val layerId = movingLayerId
+                                                if (layerId != null) {
+                                                    val documentWidth = bitmap?.width ?: return@detectDragGestures
+                                                    val documentHeight = bitmap?.height ?: return@detectDragGestures
+                                                    val fitScale = minOf(
+                                                        size.width / documentWidth.toFloat(),
+                                                        size.height / documentHeight.toFloat()
+                                                    )
+                                                    val divisor = fitScale * latestViewport.scale
+                                                    if (divisor > 0f) {
+                                                        onLayerMoveBy(layerId, dragAmount.x / divisor, dragAmount.y / divisor)
+                                                    }
+                                                } else {
+                                                    viewport = latestViewport.panBy(dragAmount.x, dragAmount.y)
+                                                }
+                                            }
+                                        } else {
+                                            detectTransformGestures { centroid, pan, zoom, _ ->
+                                                val centerX = size.width / 2f
+                                                val centerY = size.height / 2f
+                                                viewport = latestViewport.transform(
+                                                    zoomFactor = zoom,
+                                                    panX = pan.x,
+                                                    panY = pan.y,
+                                                    pivotX = centroid.x - centerX,
+                                                    pivotY = centroid.y - centerY
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .pointerInput(bitmap?.width, bitmap?.height, viewport) {
+                                        detectTapGestures { position ->
+                                            val documentWidth = bitmap?.width ?: return@detectTapGestures
+                                            val documentHeight = bitmap?.height ?: return@detectTapGestures
+                                            val fitScale = minOf(
+                                                size.width.toFloat() / documentWidth.toFloat(),
+                                                size.height.toFloat() / documentHeight.toFloat()
                                             )
+                                            if (fitScale <= 0f) return@detectTapGestures
+                                            val localX = centerForCanvas(size.width.toFloat()) +
+                                                (position.x - centerForCanvas(size.width.toFloat()) - viewport.offsetX) / viewport.scale
+                                            val localY = centerForCanvas(size.height.toFloat()) +
+                                                (position.y - centerForCanvas(size.height.toFloat()) - viewport.offsetY) / viewport.scale
+                                            val docX = (localX - (size.width - documentWidth * fitScale) / 2f) / fitScale
+                                            val docY = (localY - (size.height - documentHeight * fitScale) / 2f) / fitScale
+                                            onCanvasSelectLayer(docX, docY)
                                         }
                                     }
                                     .border(1.dp, Color(0xFF596170)),
                                 contentScale = ContentScale.Fit
                             )
+                            val selectedLayer = layers.firstOrNull { it.id == selectedLayerId }
+                            val selectedSize = selectedLayerBitmapSize
+                            if (selectedLayer != null && selectedSize != null && selectedLayer.visible) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val docWidth = bitmap.width.toFloat()
+                                    val docHeight = bitmap.height.toFloat()
+                                    val fitScale = minOf(size.width / docWidth, size.height / docHeight)
+                                    val transform = selectedLayer.transform
+                                    val radians = Math.toRadians(transform.rotationDegrees.toDouble())
+                                    val cosAngle = kotlin.math.cos(radians).toFloat()
+                                    val sinAngle = kotlin.math.sin(radians).toFloat()
+                                    fun toScreen(localX: Float, localY: Float): Offset {
+                                        val scaledX = localX * transform.scaleX
+                                        val scaledY = localY * transform.scaleY
+                                        val docX = transform.x + scaledX * cosAngle - scaledY * sinAngle
+                                        val docY = transform.y + scaledX * sinAngle + scaledY * cosAngle
+                                        val fitX = (size.width - docWidth * fitScale) / 2f + docX * fitScale
+                                        val fitY = (size.height - docHeight * fitScale) / 2f + docY * fitScale
+                                        return Offset(
+                                            size.width / 2f + (fitX - size.width / 2f) * viewport.scale + viewport.offsetX,
+                                            size.height / 2f + (fitY - size.height / 2f) * viewport.scale + viewport.offsetY
+                                        )
+                                    }
+                                    val corners = listOf(
+                                        toScreen(0f, 0f),
+                                        toScreen(selectedSize.first.toFloat(), 0f),
+                                        toScreen(selectedSize.first.toFloat(), selectedSize.second.toFloat()),
+                                        toScreen(0f, selectedSize.second.toFloat())
+                                    )
+                                    corners.indices.forEach { index ->
+                                        drawLine(Color(0xFF70C3FF), corners[index], corners[(index + 1) % corners.size], strokeWidth = 2.dp.toPx())
+                                        drawCircle(Color.White, radius = 5.dp.toPx(), center = corners[index])
+                                        drawCircle(Color(0xFF167BD1), radius = 5.dp.toPx(), center = corners[index], style = Stroke(width = 1.5.dp.toPx()))
+                                    }
+                                }
+                            }
                             Row(
                                 Modifier.align(Alignment.TopEnd)
                                     .background(Color(0xDD17191E), RoundedCornerShape(6.dp))
@@ -301,6 +413,24 @@ fun EditorScreen(
                                                 val selected = layer.id == selectedLayerId
                                                 Column(
                                                     Modifier.fillMaxWidth()
+                                                        .pointerInput(layer.id) {
+                                                            var accumulatedDrag = 0f
+                                                            val reorderThreshold = 48.dp.toPx()
+                                                            detectDragGestures(
+                                                                onDragEnd = { accumulatedDrag = 0f },
+                                                                onDragCancel = { accumulatedDrag = 0f }
+                                                            ) { change, dragAmount ->
+                                                                change.consume()
+                                                                accumulatedDrag += dragAmount.y
+                                                                while (abs(accumulatedDrag) >= reorderThreshold) {
+                                                                    // The visible list is reversed (top layer first), while the
+                                                                    // document model is bottom-to-top.
+                                                                    val direction = if (accumulatedDrag < 0f) 1 else -1
+                                                                    onMoveLayer(layer.id, direction)
+                                                                    accumulatedDrag -= sign(accumulatedDrag) * reorderThreshold
+                                                                }
+                                                            }
+                                                        }
                                                         .background(
                                                             if (selected) Accent.copy(alpha = 0.24f) else Color(0xFF202329),
                                                             RoundedCornerShape(4.dp)
@@ -314,10 +444,16 @@ fun EditorScreen(
                                                     verticalArrangement = Arrangement.spacedBy(1.dp)
                                                 ) {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        TextButton(
-                                                            onClick = { onSelectLayer(layer.id) },
-                                                            modifier = Modifier.weight(1f),
-                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        Box(
+                                                            Modifier.weight(1f).height(32.dp)
+                                                                .combinedClickable(
+                                                                    onClick = { onSelectLayer(layer.id) },
+                                                                    onDoubleClick = {
+                                                                        onSelectLayer(layer.id)
+                                                                        transformControlsLayerId = if (transformControlsLayerId == layer.id) null else layer.id
+                                                                    }
+                                                                ).padding(horizontal = 4.dp),
+                                                            contentAlignment = Alignment.CenterStart
                                                         ) {
                                                             Text(
                                                                 (if (selected) "● " else "") + layer.name,
@@ -369,6 +505,39 @@ fun EditorScreen(
                                             }
                                         }
                                         val selectedLayer = layers.firstOrNull { it.id == selectedLayerId }
+                                        if (selectedLayer != null && transformControlsLayerId == selectedLayer.id) {
+                                            PanelCard(label("تحويل الطبقة", "Layer Transform")) {
+                                                @Composable
+                                                fun transformSlider(caption: String, value: Float, range: ClosedFloatingPointRange<Float>, update: (Float) -> LayerTransform) {
+                                                    Text("$caption: ${"%.2f".format(value)}", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                                    Slider(
+                                                        value = value.coerceIn(range.start, range.endInclusive),
+                                                        onValueChange = {
+                                                            onLayerTransformStart(selectedLayer.id)
+                                                            onLayerTransformChange(selectedLayer.id, update(it))
+                                                        },
+                                                        onValueChangeFinished = onLayerTransformFinish,
+                                                        valueRange = range,
+                                                        enabled = !selectedLayer.locked
+                                                    )
+                                                }
+                                                transformSlider("X", selectedLayer.transform.x, -(bitmap?.width?.toFloat() ?: 1f)..(bitmap?.width?.toFloat() ?: 1f)) {
+                                                    selectedLayer.transform.copy(x = it)
+                                                }
+                                                transformSlider("Y", selectedLayer.transform.y, -(bitmap?.height?.toFloat() ?: 1f)..(bitmap?.height?.toFloat() ?: 1f)) {
+                                                    selectedLayer.transform.copy(y = it)
+                                                }
+                                                transformSlider("Scale X", selectedLayer.transform.scaleX, 0.1f..5f) {
+                                                    selectedLayer.transform.copy(scaleX = it)
+                                                }
+                                                transformSlider("Scale Y", selectedLayer.transform.scaleY, 0.1f..5f) {
+                                                    selectedLayer.transform.copy(scaleY = it)
+                                                }
+                                                transformSlider("Angle", selectedLayer.transform.rotationDegrees, -180f..180f) {
+                                                    selectedLayer.transform.copy(rotationDegrees = it)
+                                                }
+                                            }
+                                        }
                                         if (selectedLayer != null) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(label("العتامة", "Opacity"), color = MainText, style = MaterialTheme.typography.labelSmall)

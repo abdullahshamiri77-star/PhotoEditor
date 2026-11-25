@@ -55,6 +55,27 @@ class EditorDocumentTest {
     }
 
     @Test
+    fun reorderingLayersPreservesSelectedLayerIdentityAndLayerState() {
+        val document = EditorDocument(100, 100)
+            .addLayer(layer("bottom"))
+            .addLayer(layer("middle"))
+            .addLayer(layer("top"))
+            .setLayerOpacity("middle", 0.4f)
+            .setLayerLocked("top", true)
+            .selectLayer("middle")
+
+        val movedUp = document.moveLayer(1, 2)
+        assertEquals(listOf("bottom", "top", "middle"), movedUp.layers.map { it.id })
+        assertEquals("middle", movedUp.selectedLayerId)
+        assertEquals(0.4f, movedUp.layers.last().opacity, 0.0001f)
+        assertTrue(movedUp.layers[1].locked)
+
+        val movedDown = movedUp.moveLayer(2, 0)
+        assertEquals(listOf("middle", "bottom", "top"), movedDown.layers.map { it.id })
+        assertEquals("middle", movedDown.selectedLayerId)
+    }
+
+    @Test
     fun removingSelectedLayerSelectsNearestRemainingLayer() {
         val document = EditorDocument(100, 100)
             .addLayer(layer("first"))

@@ -17,6 +17,7 @@ import com.photoeditor.engine.document.DocumentSpec
 import com.photoeditor.engine.document.EditorSession
 import com.photoeditor.engine.document.EditorSessionHistory
 import com.photoeditor.engine.document.LayerTransform
+import com.photoeditor.engine.canvas.LayerHitTester
 import com.photoeditor.engine.document.ImageBitmapDecoder
 import com.photoeditor.ui.EditorScreen
 import java.util.UUID
@@ -55,6 +56,7 @@ private fun PhotoEditorApp() {
     val history = remember { EditorSessionHistory(12) }
     var adjustmentInProgress by remember { mutableStateOf(false) }
     var opacityAdjustmentLayerId by remember { mutableStateOf<String?>(null) }
+    var layerMoveHistoryLayerId by remember { mutableStateOf<String?>(null) }
 
     // Keep disposal attached to the latest Compose state, not the values
     // captured when this screen was first composed.
@@ -425,6 +427,73 @@ private fun PhotoEditorApp() {
         isArabic = isArabic,
         layers = session?.document?.layers.orEmpty(),
         selectedLayerId = session?.document?.selectedLayerId,
+        canMoveSelectedLayer = canAdjustSelectedLayer,
+        selectedLayerBitmapSize = session?.document?.selectedLayerId?.let { id ->
+            session?.bitmapLayers?.get(id)?.let { it.width to it.height }
+        },
+        onLayerMoveStart = { id ->
+            val active = session
+            val layer = active?.document?.layers?.firstOrNull { it.id == id }
+            if (active != null && layer != null && !layer.locked && active.bitmapLayers.containsKey(id)) {
+                finishAdjustment()
+                recordHistory(active)
+                layerMoveHistoryLayerId = id
+            }
+        },
+        onLayerMoveBy = { id, deltaX, deltaY ->
+            val active = session
+            if (active != null && layerMoveHistoryLayerId == id) {
+                val layer = active.document.layers.firstOrNull { it.id == id }
+                if (layer != null && !layer.locked) {
+                    updateLayer(id) { document ->
+                        document.updateLayer(id) { current ->
+                            current.copy(transform = current.transform.copy(
+                                x = current.transform.x + deltaX,
+                                y = current.transform.y + deltaY
+                            ))
+                        }
+                    }
+                }
+            }
+        },
+        onLayerMoveFinish = {
+            layerMoveHistoryLayerId = null
+            status = msg("تم تحريك الطبقة المحددة", "Selected layer moved")
+        },
+        onLayerTransformStart = { id ->
+            if (layerMoveHistoryLayerId != id) {
+                val active = session
+                val layer = active?.document?.layers?.firstOrNull { it.id == id }
+                if (active != null && layer != null && !layer.locked && active.bitmapLayers.containsKey(id)) {
+                    finishAdjustment()
+                    recordHistory(active)
+                    layerMoveHistoryLayerId = id
+                }
+            }
+        },
+        onLayerTransformChange = { id, transform ->
+            val active = session
+            if (active != null && layerMoveHistoryLayerId == id) {
+                updateLayer(id) { document ->
+                    document.updateLayer(id) { current -> current.copy(transform = transform) }
+                }
+            }
+        },
+        onLayerTransformFinish = { layerMoveHistoryLayerId = null },
+        onCanvasSelectLayer = { x, y ->
+            val active = session
+            if (active != null) {
+                val sizes = active.bitmapLayers.mapValues { (_, layerBitmap) ->
+                    layerBitmap.width to layerBitmap.height
+                }
+                val hitId = LayerHitTester.findTopmost(active.document, sizes, x, y)
+                if (hitId != null && hitId != active.document.selectedLayerId) {
+                    finishAdjustment()
+                    updateLayer(hitId) { it.selectLayer(hitId) }
+                    status = msg("تم تحديد الطبقة من مساحة العمل", "Layer selected from canvas")
+                }
+            }
+        },
         onToggleLanguage = { isArabic = !isArabic },
         onOpen = { imagePicker.launch("image/*") },
         onCreateDocument = { spec ->
