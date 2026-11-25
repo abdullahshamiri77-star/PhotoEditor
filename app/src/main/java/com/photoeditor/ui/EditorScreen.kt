@@ -59,6 +59,10 @@ fun EditorScreen(
     isArabic: Boolean,
     layers: List<EditorLayer>,
     selectedLayerId: String?,
+    canMoveSelectedLayer: Boolean,
+    onLayerMoveStart: (String) -> Unit,
+    onLayerMoveBy: (String, Float, Float) -> Unit,
+    onLayerMoveFinish: () -> Unit,
     onCanvasSelectLayer: (Float, Float) -> Unit,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
@@ -240,17 +244,52 @@ fun EditorScreen(
                                         translationX = viewport.offsetX
                                         translationY = viewport.offsetY
                                     }
-                                    .pointerInput(Unit) {
-                                        val centerX = size.width / 2f
-                                        val centerY = size.height / 2f
-                                        detectTransformGestures { centroid, pan, zoom, _ ->
-                                            viewport = latestViewport.transform(
-                                                zoomFactor = zoom,
-                                                panX = pan.x,
-                                                panY = pan.y,
-                                                pivotX = centroid.x - centerX,
-                                                pivotY = centroid.y - centerY
-                                            )
+                                    .pointerInput(selectedTool, selectedLayerId, canMoveSelectedLayer, bitmap?.width, bitmap?.height) {
+                                        if (selectedTool == "Move") {
+                                            var movingLayerId: String? = null
+                                            detectDragGestures(
+                                                onDragStart = {
+                                                    movingLayerId = if (canMoveSelectedLayer) selectedLayerId else null
+                                                    movingLayerId?.let(onLayerMoveStart)
+                                                },
+                                                onDragEnd = {
+                                                    if (movingLayerId != null) onLayerMoveFinish()
+                                                    movingLayerId = null
+                                                },
+                                                onDragCancel = {
+                                                    if (movingLayerId != null) onLayerMoveFinish()
+                                                    movingLayerId = null
+                                                }
+                                            ) { change, dragAmount ->
+                                                change.consume()
+                                                val layerId = movingLayerId
+                                                if (layerId != null) {
+                                                    val documentWidth = bitmap?.width ?: return@detectDragGestures
+                                                    val documentHeight = bitmap?.height ?: return@detectDragGestures
+                                                    val fitScale = minOf(
+                                                        size.width / documentWidth.toFloat(),
+                                                        size.height / documentHeight.toFloat()
+                                                    )
+                                                    val divisor = fitScale * latestViewport.scale
+                                                    if (divisor > 0f) {
+                                                        onLayerMoveBy(layerId, dragAmount.x / divisor, dragAmount.y / divisor)
+                                                    }
+                                                } else {
+                                                    viewport = latestViewport.panBy(dragAmount.x, dragAmount.y)
+                                                }
+                                            }
+                                        } else {
+                                            detectTransformGestures { centroid, pan, zoom, _ ->
+                                                val centerX = size.width / 2f
+                                                val centerY = size.height / 2f
+                                                viewport = latestViewport.transform(
+                                                    zoomFactor = zoom,
+                                                    panX = pan.x,
+                                                    panY = pan.y,
+                                                    pivotX = centroid.x - centerX,
+                                                    pivotY = centroid.y - centerY
+                                                )
+                                            }
                                         }
                                     }
                                     .pointerInput(bitmap?.width, bitmap?.height, viewport) {
