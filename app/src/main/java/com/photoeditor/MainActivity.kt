@@ -428,6 +428,9 @@ private fun PhotoEditorApp() {
         layers = session?.document?.layers.orEmpty(),
         selectedLayerId = session?.document?.selectedLayerId,
         canMoveSelectedLayer = canAdjustSelectedLayer,
+        selectedLayerBitmapSize = session?.document?.selectedLayerId?.let { id ->
+            session?.bitmapLayers?.get(id)?.let { it.width to it.height }
+        },
         onLayerMoveStart = { id ->
             val active = session
             val layer = active?.document?.layers?.firstOrNull { it.id == id }
