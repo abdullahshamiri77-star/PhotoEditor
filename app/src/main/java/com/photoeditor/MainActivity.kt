@@ -317,8 +317,28 @@ private fun PhotoEditorApp() {
             status = msg("الطبقة المحددة ليست طبقة صورة قابلة للتأثير", "Selected layer is not an editable image layer")
             return
         }
+
+        // Generate the candidate before recording history; failed effects must not
+        // create a phantom undo entry or disturb the current session.
+        val effected = try {
+            effect(source)
+        } catch (_: OutOfMemoryError) {
+            status = msg("لا توجد ذاكرة كافية لتنفيذ التأثير", "Not enough memory to apply the effect")
+            return
+        } catch (error: Exception) {
+            status = msg(
+                "فشل التأثير: ${error.localizedMessage ?: "خطأ"}",
+                "Effect failed: ${error.localizedMessage ?: "Error"}"
+            )
+            return
+        }
+        if (effected === source || effected.isRecycled) {
+            status = msg("أعاد التأثير صورة غير صالحة", "Effect returned an invalid bitmap")
+            return
+        }
+
         recordHistory(active)
-        renderSession(active.replaceBitmapPayload(layerId, effect(source)))
+        renderSession(active.replaceBitmapPayload(layerId, effected))
         status = msg("تم تطبيق التأثير على الطبقة المحددة", "Effect applied to selected layer")
     }
 
