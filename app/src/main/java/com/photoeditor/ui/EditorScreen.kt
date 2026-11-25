@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.consume
 import kotlin.math.abs
 import kotlin.math.sign
@@ -43,6 +44,8 @@ private val Accent = Color(0xFF2685E8)
 private val MainText = Color(0xFFE7EAF0)
 private val MutedText = Color(0xFFAAB2C0)
 
+private fun centerForCanvas(value: Float): Float = value / 2f
+
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
@@ -56,6 +59,7 @@ fun EditorScreen(
     isArabic: Boolean,
     layers: List<EditorLayer>,
     selectedLayerId: String?,
+    onCanvasSelectLayer: (Float, Float) -> Unit,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
     onCreateDocument: (DocumentSpec) -> Unit,
@@ -247,6 +251,24 @@ fun EditorScreen(
                                                 pivotX = centroid.x - centerX,
                                                 pivotY = centroid.y - centerY
                                             )
+                                        }
+                                    }
+                                    .pointerInput(bitmap?.width, bitmap?.height, viewport) {
+                                        detectTapGestures { position ->
+                                            val documentWidth = bitmap?.width ?: return@detectTapGestures
+                                            val documentHeight = bitmap?.height ?: return@detectTapGestures
+                                            val fitScale = minOf(
+                                                size.width / documentWidth.toFloat(),
+                                                size.height / documentHeight.toFloat()
+                                            )
+                                            if (fitScale <= 0f) return@detectTapGestures
+                                            val localX = centerForCanvas(size.width) +
+                                                (position.x - centerForCanvas(size.width) - viewport.offsetX) / viewport.scale
+                                            val localY = centerForCanvas(size.height) +
+                                                (position.y - centerForCanvas(size.height) - viewport.offsetY) / viewport.scale
+                                            val docX = (localX - (size.width - documentWidth * fitScale) / 2f) / fitScale
+                                            val docY = (localY - (size.height - documentHeight * fitScale) / 2f) / fitScale
+                                            onCanvasSelectLayer(docX, docY)
                                         }
                                     }
                                     .border(1.dp, Color(0xFF596170)),
