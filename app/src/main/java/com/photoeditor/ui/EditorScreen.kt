@@ -2,6 +2,7 @@ package com.photoeditor.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.photoeditor.engine.document.EditorLayer
+import com.photoeditor.engine.document.LayerTransform
 import com.photoeditor.engine.document.DocumentPreset
 import com.photoeditor.engine.document.DocumentSizeUnit
 import com.photoeditor.engine.document.DocumentSpec
@@ -67,6 +69,9 @@ fun EditorScreen(
     onLayerMoveStart: (String) -> Unit,
     onLayerMoveBy: (String, Float, Float) -> Unit,
     onLayerMoveFinish: () -> Unit,
+    onLayerTransformStart: (String) -> Unit,
+    onLayerTransformChange: (String, LayerTransform) -> Unit,
+    onLayerTransformFinish: () -> Unit,
     onCanvasSelectLayer: (Float, Float) -> Unit,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
@@ -96,6 +101,7 @@ fun EditorScreen(
     var showProperties by remember { mutableStateOf(true) }
     var showColorPanel by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var transformControlsLayerId by remember { mutableStateOf<String?>(null) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
     var showNewDocumentDialog by remember { mutableStateOf(false) }
     var presetMenuExpanded by remember { mutableStateOf(false) }
@@ -437,10 +443,16 @@ fun EditorScreen(
                                                     verticalArrangement = Arrangement.spacedBy(1.dp)
                                                 ) {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        TextButton(
-                                                            onClick = { onSelectLayer(layer.id) },
-                                                            modifier = Modifier.weight(1f),
-                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                        Box(
+                                                            Modifier.weight(1f).height(32.dp)
+                                                                .combinedClickable(
+                                                                    onClick = { onSelectLayer(layer.id) },
+                                                                    onDoubleClick = {
+                                                                        onSelectLayer(layer.id)
+                                                                        transformControlsLayerId = if (transformControlsLayerId == layer.id) null else layer.id
+                                                                    }
+                                                                ).padding(horizontal = 4.dp),
+                                                            contentAlignment = Alignment.CenterStart
                                                         ) {
                                                             Text(
                                                                 (if (selected) "● " else "") + layer.name,
@@ -492,6 +504,39 @@ fun EditorScreen(
                                             }
                                         }
                                         val selectedLayer = layers.firstOrNull { it.id == selectedLayerId }
+                                        if (selectedLayer != null && transformControlsLayerId == selectedLayer.id) {
+                                            PanelCard(label("تحويل الطبقة", "Layer Transform")) {
+                                                @Composable
+                                                fun transformSlider(caption: String, value: Float, range: ClosedFloatingPointRange<Float>, update: (Float) -> LayerTransform) {
+                                                    Text("$caption: ${"%.2f".format(value)}", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                                    Slider(
+                                                        value = value.coerceIn(range.start, range.endInclusive),
+                                                        onValueChange = {
+                                                            onLayerTransformStart(selectedLayer.id)
+                                                            onLayerTransformChange(selectedLayer.id, update(it))
+                                                        },
+                                                        onValueChangeFinished = onLayerTransformFinish,
+                                                        valueRange = range,
+                                                        enabled = !selectedLayer.locked
+                                                    )
+                                                }
+                                                transformSlider("X", selectedLayer.transform.x, -bitmap.width.toFloat()..bitmap.width.toFloat()) {
+                                                    selectedLayer.transform.copy(x = it)
+                                                }
+                                                transformSlider("Y", selectedLayer.transform.y, -bitmap.height.toFloat()..bitmap.height.toFloat()) {
+                                                    selectedLayer.transform.copy(y = it)
+                                                }
+                                                transformSlider("Scale X", selectedLayer.transform.scaleX, 0.1f..5f) {
+                                                    selectedLayer.transform.copy(scaleX = it)
+                                                }
+                                                transformSlider("Scale Y", selectedLayer.transform.scaleY, 0.1f..5f) {
+                                                    selectedLayer.transform.copy(scaleY = it)
+                                                }
+                                                transformSlider("Angle", selectedLayer.transform.rotationDegrees, -180f..180f) {
+                                                    selectedLayer.transform.copy(rotationDegrees = it)
+                                                }
+                                            }
+                                        }
                                         if (selectedLayer != null) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(label("العتامة", "Opacity"), color = MainText, style = MaterialTheme.typography.labelSmall)
