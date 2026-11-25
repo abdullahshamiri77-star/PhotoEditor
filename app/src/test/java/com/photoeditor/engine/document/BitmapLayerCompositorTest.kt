@@ -137,6 +137,25 @@ class BitmapLayerCompositorTest {
         }
     }
 
+    @Test
+    fun layerTranslationMovesPixelsIntoDocumentCoordinates() {
+        val source = solidBitmap(Color.MAGENTA)
+        val document = EditorDocument(2, 1)
+            .addLayer(EditorLayer(
+                "layer", "Layer", LayerKind.BITMAP,
+                transform = LayerTransform(x = 1f, y = 0f)
+            ))
+
+        val output = BitmapLayerCompositor.render(document, mapOf("layer" to source))
+        try {
+            assertEquals(Color.TRANSPARENT, output.getPixel(0, 0))
+            assertEquals(Color.MAGENTA, output.getPixel(1, 0))
+        } finally {
+            output.recycle()
+            source.recycle()
+        }
+    }
+
     private fun assertChannelNear(channel: String, expected: Int, actual: Int) {
         assertTrue(
             "$channel channel expected near $expected, actual=$actual",
