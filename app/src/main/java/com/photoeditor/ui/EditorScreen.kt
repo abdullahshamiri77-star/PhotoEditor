@@ -2,6 +2,7 @@ package com.photoeditor.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -28,6 +29,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -60,6 +63,7 @@ fun EditorScreen(
     layers: List<EditorLayer>,
     selectedLayerId: String?,
     canMoveSelectedLayer: Boolean,
+    selectedLayerBitmapSize: Pair<Int, Int>?,
     onLayerMoveStart: (String) -> Unit,
     onLayerMoveBy: (String, Float, Float) -> Unit,
     onLayerMoveFinish: () -> Unit,
@@ -313,6 +317,42 @@ fun EditorScreen(
                                     .border(1.dp, Color(0xFF596170)),
                                 contentScale = ContentScale.Fit
                             )
+                            val selectedLayer = layers.firstOrNull { it.id == selectedLayerId }
+                            val selectedSize = selectedLayerBitmapSize
+                            if (selectedLayer != null && selectedSize != null && selectedLayer.visible) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val docWidth = bitmap.width.toFloat()
+                                    val docHeight = bitmap.height.toFloat()
+                                    val fitScale = minOf(size.width / docWidth, size.height / docHeight)
+                                    val transform = selectedLayer.transform
+                                    val radians = Math.toRadians(transform.rotationDegrees.toDouble())
+                                    val cosAngle = kotlin.math.cos(radians).toFloat()
+                                    val sinAngle = kotlin.math.sin(radians).toFloat()
+                                    fun toScreen(localX: Float, localY: Float): Offset {
+                                        val scaledX = localX * transform.scaleX
+                                        val scaledY = localY * transform.scaleY
+                                        val docX = transform.x + scaledX * cosAngle - scaledY * sinAngle
+                                        val docY = transform.y + scaledX * sinAngle + scaledY * cosAngle
+                                        val fitX = (size.width - docWidth * fitScale) / 2f + docX * fitScale
+                                        val fitY = (size.height - docHeight * fitScale) / 2f + docY * fitScale
+                                        return Offset(
+                                            size.width / 2f + (fitX - size.width / 2f) * viewport.scale + viewport.offsetX,
+                                            size.height / 2f + (fitY - size.height / 2f) * viewport.scale + viewport.offsetY
+                                        )
+                                    }
+                                    val corners = listOf(
+                                        toScreen(0f, 0f),
+                                        toScreen(selectedSize.first.toFloat(), 0f),
+                                        toScreen(selectedSize.first.toFloat(), selectedSize.second.toFloat()),
+                                        toScreen(0f, selectedSize.second.toFloat())
+                                    )
+                                    corners.indices.forEach { index ->
+                                        drawLine(Color(0xFF70C3FF), corners[index], corners[(index + 1) % corners.size], strokeWidth = 2.dp.toPx())
+                                        drawCircle(Color.White, radius = 5.dp.toPx(), center = corners[index])
+                                        drawCircle(Color(0xFF167BD1), radius = 5.dp.toPx(), center = corners[index], style = Stroke(width = 1.5.dp.toPx()))
+                                    }
+                                }
+                            }
                             Row(
                                 Modifier.align(Alignment.TopEnd)
                                     .background(Color(0xDD17191E), RoundedCornerShape(6.dp))
