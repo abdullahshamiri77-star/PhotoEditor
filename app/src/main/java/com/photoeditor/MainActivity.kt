@@ -116,6 +116,24 @@ private fun PhotoEditorApp() {
             )
             null
         }
+
+        // Rendering is transactional: do not replace the working session with a
+        // state whose preview failed. Dispose only payloads unique to the failed
+        // candidate, preserving bitmaps shared with the current session/originals.
+        if (next != null && nextPreview == null) {
+            BitmapOwnership.releaseUnretained(
+                previous = next.bitmapLayers.values,
+                retained = buildList {
+                    addAll(previous?.bitmapLayers?.values.orEmpty())
+                    addAll(originalBitmaps.values)
+                    adjustmentBase?.let(::add)
+                }
+            ) { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+            return
+        }
+
         session = next
         previewBitmap = nextPreview
 
