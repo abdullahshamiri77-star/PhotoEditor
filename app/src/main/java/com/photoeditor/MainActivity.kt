@@ -116,12 +116,25 @@ private fun PhotoEditorApp() {
             )
             null
         }
+
+        // Keep the active document untouched if rendering the candidate fails.
+        if (next != null && nextPreview == null) {
+            BitmapOwnership.releaseUnretained(
+                previous = next.bitmapLayers.values,
+                retained = buildList {
+                    addAll(previous?.bitmapLayers?.values.orEmpty())
+                    addAll(originalBitmaps.values)
+                    adjustmentBase?.let(::add)
+                }
+            ) { bitmap ->
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+            return
+        }
+
         session = next
         previewBitmap = nextPreview
 
-        // Session snapshots in history are deep copies. Reclaim only payloads
-        // that are no longer referenced by the next session, originals, or an
-        // in-progress adjustment's immutable base image.
         if (previous != null) {
             BitmapOwnership.releaseUnretained(
                 previous = previous.bitmapLayers.values,
