@@ -41,7 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 private val AppBg = Color(0xFF17191E)
 private val PanelBg = Color(0xFF22252C)
@@ -103,6 +105,8 @@ fun EditorScreen(
     var showProperties by remember { mutableStateOf(true) }
     var showColorPanel by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showShapes by remember { mutableStateOf(false) }
+    var showBrushes by remember { mutableStateOf(false) }
     var transformControlsLayerId by remember { mutableStateOf<String?>(null) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
     var showNewDocumentDialog by remember { mutableStateOf(false) }
@@ -188,6 +192,8 @@ fun EditorScreen(
                                         DropdownMenuItem(text = { Text(label("الخصائص", "Properties") + if (showProperties) " ✓" else "") }, onClick = { showProperties = !showProperties; activeMenu = null })
                                         DropdownMenuItem(text = { Text(label("الألوان", "Colors") + if (showColorPanel) " ✓" else "") }, onClick = { showColorPanel = !showColorPanel; activeMenu = null })
                                         DropdownMenuItem(text = { Text(label("السجل", "History") + if (showHistory) " ✓" else "") }, onClick = { showHistory = !showHistory; activeMenu = null })
+                                        DropdownMenuItem(text = { Text(label("الأشكال", "Shapes") + if (showShapes) " ✓" else "") }, onClick = { showShapes = !showShapes; activeMenu = null })
+                                        DropdownMenuItem(text = { Text(label("الفرش", "Brushes") + if (showBrushes) " ✓" else "") }, onClick = { showBrushes = !showBrushes; activeMenu = null })
                                     }
                                     else -> DropdownMenuItem(text = { Text(label("سيتم تفعيل أدوات هذه القائمة ضمن مراحل التنفيذ", "Tools in this menu are scheduled for implementation")) }, onClick = { activeMenu = null })
                                 }
@@ -409,11 +415,8 @@ fun EditorScreen(
                         }
                     }
                     // Dockable right-side panels.
-                    if (showLayers || showProperties || showColorPanel || showHistory) {
-                        Column(
-                            Modifier.width(156.dp).fillMaxHeight().background(PanelBg).padding(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(7.dp)
-                        ) {
+                    if (showLayers || showProperties || showColorPanel || showHistory || showShapes || showBrushes) {
+                        Box(Modifier.fillMaxSize()) {
                             if (showLayers) {
                                 PanelCard(label("الطبقات", "Layers")) {
                                     if (layers.isEmpty()) {
@@ -609,6 +612,16 @@ fun EditorScreen(
                                     Text(label("تراجع وإعادة متاحان من قائمة Edit", "Undo and redo are available in Edit"), color = MutedText, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
+                            if (showShapes) {
+                                PanelCard(label("الأشكال", "Shapes")) {
+                                    Text(label("اختر أداة الشكل من شريط الأدوات؛ لا توجد أدوات شكل إضافية مفعّلة بعد", "Choose a shape tool from the tool rail; additional shape controls are not active yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                            if (showBrushes) {
+                                PanelCard(label("الفرش", "Brushes")) {
+                                    Text(label("لوحة الفرش جاهزة كمكان عمل؛ إعدادات الفرش المتقدمة لم تُفعّل بعد", "Brush workspace is available; advanced brush settings are not active yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
                         }
                     }
                 }
@@ -762,11 +775,27 @@ fun EditorScreen(
 
 @Composable
 private fun PanelCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    var dragOffset by remember(title) { mutableStateOf(Offset(0f, 0f)) }
+    val startY = when (title) {
+        "Layers", "الطبقات" -> 0
+        "Properties", "الخصائص" -> 290
+        "Colors", "الألوان" -> 500
+        "History", "السجل" -> 650
+        "Shapes", "الأشكال" -> 120
+        else -> 240
+    }
+    val startX = when (title) { "Colors", "الألوان" -> 150; "Shapes", "الأشكال" -> 150; else -> 0 }
     Column(
-        Modifier.fillMaxWidth().background(Color(0xFF292D35), RoundedCornerShape(5.dp)).border(1.dp, PanelEdge, RoundedCornerShape(5.dp)).padding(7.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        Modifier.width(156.dp).offset { IntOffset(startX.dp.roundToPx() + dragOffset.x.roundToInt(), startY.dp.roundToPx() + dragOffset.y.roundToInt()) }
+            .background(Color(0xFF292D35), RoundedCornerShape(5.dp)).border(1.dp, PanelEdge, RoundedCornerShape(5.dp)).padding(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         content = {
-            Text(title, color = MainText, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+            Row(Modifier.fillMaxWidth().pointerInput(title) {
+                detectDragGestures { change, amount -> change.consume(); dragOffset += amount }
+            }, verticalAlignment = Alignment.CenterVertically) {
+                Text(title, modifier = Modifier.weight(1f), color = MainText, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+                Text("⠿", color = MutedText, style = MaterialTheme.typography.labelMedium)
+            }
             HorizontalDivider(color = PanelEdge)
             content()
         }
