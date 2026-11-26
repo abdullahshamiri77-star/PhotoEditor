@@ -73,7 +73,7 @@ fun EditorScreen(
     onLayerTransformStart: (String) -> Unit,
     onLayerTransformChange: (String, LayerTransform) -> Unit,
     onLayerTransformFinish: () -> Unit,
-    onCanvasSelectLayer: (Float, Float) -> Unit,
+    onCanvasSelectLayer: (Float, Float) -> String?,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
     onCreateDocument: (DocumentSpec) -> Unit,
@@ -259,8 +259,25 @@ fun EditorScreen(
                                         if (selectedTool == "Move") {
                                             var movingLayerId: String? = null
                                             detectDragGestures(
-                                                onDragStart = {
-                                                    movingLayerId = if (canMoveSelectedLayer) selectedLayerId else null
+                                                onDragStart = { start ->
+                                                    val documentWidth = bitmap?.width ?: 0
+                                                    val documentHeight = bitmap?.height ?: 0
+                                                    val documentPoint = if (documentWidth > 0 && documentHeight > 0) {
+                                                        CanvasCoordinateMapper.screenToDocument(
+                                                            canvasWidth = size.width.toFloat(),
+                                                            canvasHeight = size.height.toFloat(),
+                                                            documentWidth = documentWidth,
+                                                            documentHeight = documentHeight,
+                                                            screenX = start.x,
+                                                            screenY = start.y,
+                                                            viewportScale = latestViewport.scale,
+                                                            viewportOffsetX = latestViewport.offsetX,
+                                                            viewportOffsetY = latestViewport.offsetY
+                                                        )
+                                                    } else null
+                                                    movingLayerId = documentPoint?.let { point ->
+                                                        onCanvasSelectLayer(point.first, point.second)
+                                                    }
                                                     movingLayerId?.let(onLayerMoveStart)
                                                 },
                                                 onDragEnd = {
@@ -307,18 +324,18 @@ fun EditorScreen(
                                         detectTapGestures { position ->
                                             val documentWidth = bitmap?.width ?: return@detectTapGestures
                                             val documentHeight = bitmap?.height ?: return@detectTapGestures
-                                            val fitScale = minOf(
-                                                size.width.toFloat() / documentWidth.toFloat(),
-                                                size.height.toFloat() / documentHeight.toFloat()
-                                            )
-                                            if (fitScale <= 0f) return@detectTapGestures
-                                            val localX = centerForCanvas(size.width.toFloat()) +
-                                                (position.x - centerForCanvas(size.width.toFloat()) - viewport.offsetX) / viewport.scale
-                                            val localY = centerForCanvas(size.height.toFloat()) +
-                                                (position.y - centerForCanvas(size.height.toFloat()) - viewport.offsetY) / viewport.scale
-                                            val docX = (localX - (size.width - documentWidth * fitScale) / 2f) / fitScale
-                                            val docY = (localY - (size.height - documentHeight * fitScale) / 2f) / fitScale
-                                            onCanvasSelectLayer(docX, docY)
+                                            val documentPoint = CanvasCoordinateMapper.screenToDocument(
+                                                canvasWidth = size.width.toFloat(),
+                                                canvasHeight = size.height.toFloat(),
+                                                documentWidth = documentWidth,
+                                                documentHeight = documentHeight,
+                                                screenX = position.x,
+                                                screenY = position.y,
+                                                viewportScale = viewport.scale,
+                                                viewportOffsetX = viewport.offsetX,
+                                                viewportOffsetY = viewport.offsetY
+                                            ) ?: return@detectTapGestures
+                                            onCanvasSelectLayer(documentPoint.first, documentPoint.second)
                                         }
                                     }
                                     .border(1.dp, Color(0xFF596170)),
