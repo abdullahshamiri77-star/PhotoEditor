@@ -181,7 +181,6 @@ fun EditorScreen(
                                         DropdownMenuItem(text = { Text(label("استعادة الأصل", "Restore Original")) }, enabled = canAdjustSelectedLayer, onClick = { activeMenu = null; onReset() })
                                     }
                                     "Layer" -> {
-                                        DropdownMenuItem(text = { Text(label("إضافة صورة كطبقة", "Import image layer")) }, onClick = { activeMenu = null; onOpen() })
                                         DropdownMenuItem(text = { Text(label("حذف الطبقة المحددة", "Delete selected layer")) }, enabled = selectedLayerId != null, onClick = { activeMenu = null; selectedLayerId?.let(onDeleteLayer) })
                                     }
                                     "Window" -> {
@@ -204,6 +203,17 @@ fun EditorScreen(
                     Text(label("الأداة:", "Tool:"), color = MutedText, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.width(6.dp))
                     Text(selectedTool, color = Color(0xFF8FC5FF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = { selectedTool = "Move" },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedTool == "Move") Accent else Color(0xFF3A414D),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(label("تحريك الطبقة", "Move Layer"), style = MaterialTheme.typography.labelSmall)
+                    }
                     Spacer(Modifier.weight(1f))
                     Text(if (bitmap == null) label("لا يوجد مستند", "No document") else "${bitmap.width} × ${bitmap.height} px", color = MutedText, style = MaterialTheme.typography.labelSmall)
                 }
@@ -238,12 +248,7 @@ fun EditorScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (bitmap == null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("＋", color = Color(0xFF8B96A7), style = MaterialTheme.typography.displayMedium)
-                                Text(label("مساحة العمل", "Workspace"), color = MainText, fontWeight = FontWeight.SemiBold)
-                                Text(label("افتح صورة للبدء أو أنشئ مستندًا جديدًا", "Open an image or create a new document"), color = MutedText, style = MaterialTheme.typography.bodySmall)
-                                Button(onClick = onOpen) { Text(label("فتح صورة", "Open Image")) }
-                            }
+                            Spacer(Modifier.fillMaxSize())
                         } else {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
@@ -412,13 +417,6 @@ fun EditorScreen(
                         ) {
                             if (showLayers) {
                                 PanelCard(label("الطبقات", "Layers")) {
-                                    Button(
-                                        onClick = onOpen,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(label("＋ إضافة صورة", "＋ Add image layer"), style = MaterialTheme.typography.labelSmall)
-                                    }
                                     if (layers.isEmpty()) {
                                         Text(label("لا توجد طبقات بعد", "No layers yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
                                     } else {
