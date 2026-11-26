@@ -58,6 +58,9 @@ private fun centerForCanvas(value: Float): Float = value / 2f
 @Composable
 fun EditorScreen(
     bitmap: Bitmap?,
+    imageDocumentPreview: Bitmap?,
+    onAddImageDocumentToCanvas: () -> Unit,
+    onCloseImageDocument: () -> Unit,
     canAdjustSelectedLayer: Boolean,
     status: String,
     canUndo: Boolean,
@@ -639,6 +642,30 @@ fun EditorScreen(
                 }
             }
         }
+    }
+
+    if (imageDocumentPreview != null) {
+        AlertDialog(
+            onDismissRequest = onCloseImageDocument,
+            title = { Text(label("مستند صورة مفتوح", "Opened Image Document")) },
+            text = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Image(
+                        bitmap = imageDocumentPreview.asImageBitmap(),
+                        contentDescription = label("معاينة الصورة المستوردة", "Imported image preview"),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                    Text("${imageDocumentPreview.width} × ${imageDocumentPreview.height} px", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onAddImageDocumentToCanvas) { Text(label("إضافة إلى مساحة التصميم", "Add to Design")) }
+            },
+            dismissButton = {
+                TextButton(onClick = onCloseImageDocument) { Text(label("إغلاق", "Close")) }
+            }
+        )
     }
 
     if (showNewDocumentDialog) {
