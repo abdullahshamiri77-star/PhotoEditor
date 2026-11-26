@@ -412,7 +412,7 @@ fun EditorScreen(
                     // Dockable right-side panels.
                     if (showLayers || showProperties || showColorPanel || showHistory) {
                         Column(
-                            Modifier.width(176.dp).fillMaxHeight().background(PanelBg).padding(7.dp),
+                            Modifier.width(156.dp).fillMaxHeight().background(PanelBg).padding(4.dp),
                             verticalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
                             if (showLayers) {
@@ -421,7 +421,7 @@ fun EditorScreen(
                                         Text(label("لا توجد طبقات بعد", "No layers yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
                                     } else {
                                         Column(
-                                            Modifier.fillMaxWidth().heightIn(max = 270.dp).verticalScroll(rememberScrollState()),
+                                            Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
                                             verticalArrangement = Arrangement.spacedBy(3.dp)
                                         ) {
                                             layers.asReversed().forEach { layer ->
@@ -456,12 +456,12 @@ fun EditorScreen(
                                                             if (selected) Color(0xFF62B5FF) else PanelEdge,
                                                             RoundedCornerShape(4.dp)
                                                         )
-                                                        .padding(3.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                                        .padding(2.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(0.dp)
                                                 ) {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Box(
-                                                            Modifier.weight(1f).height(32.dp)
+                                                            Modifier.weight(1f).height(26.dp)
                                                                 .combinedClickable(
                                                                     onClick = { onSelectLayer(layer.id) },
                                                                     onDoubleClick = {
@@ -481,7 +481,7 @@ fun EditorScreen(
                                                         }
                                                         TextButton(
                                                             onClick = { onToggleLayerVisibility(layer.id, !layer.visible) },
-                                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                                                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)
                                                         ) {
                                                             Text(if (layer.visible) "◉" else "○", color = MutedText)
                                                         }
@@ -493,13 +493,13 @@ fun EditorScreen(
                                                         }
                                                     }
                                                     Row(
-                                                        Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                        Modifier.fillMaxWidth().height(24.dp),
+                                                        horizontalArrangement = Arrangement.spacedBy(1.dp)
                                                     ) {
                                                         TextButton(
                                                             onClick = { onMoveLayer(layer.id, 1) },
                                                             enabled = layerIndex < layers.lastIndex,
-                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)
                                                         ) { Text("↑", color = MutedText) }
                                                         TextButton(
                                                             onClick = { onMoveLayer(layer.id, -1) },
@@ -555,14 +555,31 @@ fun EditorScreen(
                                             }
                                         }
                                         if (selectedLayer != null) {
+                                            var opacityPercentText by remember(selectedLayer.id) { mutableStateOf((selectedLayer.opacity * 100).toInt().toString()) }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(label("العتامة", "Opacity"), color = MainText, style = MaterialTheme.typography.labelSmall)
                                                 Spacer(Modifier.weight(1f))
-                                                Text("${(selectedLayer.opacity * 100).toInt()}%", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                                OutlinedTextField(
+                                                    value = opacityPercentText,
+                                                    onValueChange = { input ->
+                                                        opacityPercentText = input.filter { it.isDigit() }.take(3)
+                                                        val percent = opacityPercentText.toIntOrNull()
+                                                        if (percent != null && percent in 0..100) onLayerOpacityChange(selectedLayer.id, percent / 100f)
+                                                    },
+                                                    modifier = Modifier.width(62.dp).height(40.dp),
+                                                    singleLine = true,
+                                                    textStyle = MaterialTheme.typography.labelSmall,
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    enabled = !selectedLayer.locked
+                                                )
+                                                Text("%", color = MutedText, style = MaterialTheme.typography.labelSmall)
                                             }
                                             Slider(
                                                 value = selectedLayer.opacity,
-                                                onValueChange = { onLayerOpacityChange(selectedLayer.id, it) },
+                                                onValueChange = {
+                                                    opacityPercentText = (it * 100).toInt().toString()
+                                                    onLayerOpacityChange(selectedLayer.id, it)
+                                                },
                                                 onValueChangeFinished = onLayerOpacityFinish,
                                                 enabled = !selectedLayer.locked
                                             )
