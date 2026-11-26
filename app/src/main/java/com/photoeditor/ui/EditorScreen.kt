@@ -654,7 +654,21 @@ fun EditorScreen(
                     Image(
                         bitmap = imageDocumentPreview.asImageBitmap(),
                         contentDescription = label("معاينة الصورة المستوردة", "Imported image preview"),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).graphicsLayer { scaleX = imageDocumentZoom; scaleY = imageDocumentZoom },
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)
+                            .graphicsLayer { scaleX = imageDocumentZoom; scaleY = imageDocumentZoom }
+                            .pointerInput(imageDocumentPreview) {
+                                var dragDistance = 0f
+                                detectDragGestures(
+                                    onDragStart = { dragDistance = 0f },
+                                    onDragEnd = {
+                                        if (dragDistance >= 48.dp.toPx()) onAddImageDocumentToCanvas()
+                                    },
+                                    onDragCancel = { dragDistance = 0f }
+                                ) { change, dragAmount ->
+                                    change.consume()
+                                    dragDistance += abs(dragAmount.x) + abs(dragAmount.y)
+                                }
+                            },
                         contentScale = ContentScale.Fit
                     )
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
