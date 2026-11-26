@@ -111,6 +111,7 @@ fun EditorScreen(
     var showShapes by remember { mutableStateOf(false) }
     var showBrushes by remember { mutableStateOf(false) }
     var transformControlsLayerId by remember { mutableStateOf<String?>(null) }
+    var imageDocumentZoom by remember(imageDocumentPreview) { mutableFloatStateOf(1f) }
     var activeMenu by remember { mutableStateOf<String?>(null) }
     var showNewDocumentDialog by remember { mutableStateOf(false) }
     var presetMenuExpanded by remember { mutableStateOf(false) }
@@ -653,10 +654,15 @@ fun EditorScreen(
                     Image(
                         bitmap = imageDocumentPreview.asImageBitmap(),
                         contentDescription = label("معاينة الصورة المستوردة", "Imported image preview"),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).graphicsLayer { scaleX = imageDocumentZoom; scaleY = imageDocumentZoom },
                         contentScale = ContentScale.Fit
                     )
-                    Text("${imageDocumentPreview.width} × ${imageDocumentPreview.height} px", color = MutedText, style = MaterialTheme.typography.labelSmall)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${imageDocumentPreview.width} × ${imageDocumentPreview.height} px", modifier = Modifier.weight(1f), color = MutedText, style = MaterialTheme.typography.labelSmall)
+                        TextButton(onClick = { imageDocumentZoom = (imageDocumentZoom / 1.25f).coerceAtLeast(0.25f) }) { Text("−") }
+                        Text("${(imageDocumentZoom * 100).toInt()}%", color = MainText, style = MaterialTheme.typography.labelSmall)
+                        TextButton(onClick = { imageDocumentZoom = (imageDocumentZoom * 1.25f).coerceAtMost(4f) }) { Text("+") }
+                    }
                 }
             },
             confirmButton = {
