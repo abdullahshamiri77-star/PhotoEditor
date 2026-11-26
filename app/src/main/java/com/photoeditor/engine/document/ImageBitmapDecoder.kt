@@ -3,6 +3,8 @@ package com.photoeditor.engine.document
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 
 /**
@@ -67,10 +69,49 @@ object ImageBitmapDecoder {
             } catch (_: Exception) {
                 null
             }
-            if (decoded != null && decoded.width > 0 && decoded.height > 0) return decoded
+            if (decoded != null && decoded.width > 0 && decoded.height > 0) return applyExifOrientation(contentResolver, uri, decoded)
             sampleSize *= 2
         }
         return null
+    }
+
+    private fun applyExifOrientation(contentResolver: ContentResolver, uri: Uri, bitmap: Bitmap): Bitmap {
+        val orientation = try {
+            contentResolver.openInputStream(uri)?.use { stream ->
+                ExifInterface(stream).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: ExifInterface.ORIENTATION_NORMAL
+        } catch (_: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(270f)
+                matrix.postScale(-1f, 1f)
+            }
+            else -> return bitmap
+        }
+
+        return try {
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true).also { oriented ->
+                if (oriented !== bitmap) bitmap.recycle()
+            }
+        } catch (_: Exception) {
+            bitmap
+        }
     }
 
     internal fun calculateSampleSize(width: Int, height: Int): Int {
