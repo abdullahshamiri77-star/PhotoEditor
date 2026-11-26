@@ -25,6 +25,7 @@ import com.photoeditor.engine.document.DocumentPreset
 import com.photoeditor.engine.document.DocumentSizeUnit
 import com.photoeditor.engine.document.DocumentSpec
 import com.photoeditor.engine.canvas.CanvasViewport
+import com.photoeditor.engine.canvas.CanvasCoordinateMapper
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
