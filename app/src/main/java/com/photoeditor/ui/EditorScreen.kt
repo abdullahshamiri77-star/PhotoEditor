@@ -412,9 +412,8 @@ fun EditorScreen(
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                                 ) { Text(label("ملاءمة", "Fit"), color = Color(0xFF8FC5FF), style = MaterialTheme.typography.labelSmall) }
                             }
-                        }
-                    }
-                    // Dockable right-side panels.
+                        Box(Modifier.fillMaxSize()) {
+                    // Floating workspace panels overlay the canvas.
                     if (showLayers || showProperties || showColorPanel || showHistory || showShapes || showBrushes) {
                         Box(Modifier.fillMaxSize()) {
                             if (showLayers) {
@@ -624,6 +623,11 @@ fun EditorScreen(
                             }
                         }
                     }
+                        }
+
+                        }
+                    }
+
                 }
                 // Status and quick actions.
                 Row(
