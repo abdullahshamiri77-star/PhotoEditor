@@ -492,8 +492,7 @@ private fun PhotoEditorApp() {
                     updateLayer(hitId) { it.selectLayer(hitId) }
                     status = msg("تم تحديد الطبقة من مساحة العمل", "Layer selected from canvas")
                 }
-                val hitLayer = active.document.layers.firstOrNull { it.id == hitId }
-                if (hitLayer != null && !hitLayer.locked && active.bitmapLayers.containsKey(hitId)) hitId else null
+                hitId
             } else null
         },
         onToggleLanguage = { isArabic = !isArabic },
