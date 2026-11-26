@@ -46,6 +46,8 @@ private fun PhotoEditorApp() {
 
     var session by remember { mutableStateOf<EditorSession?>(null) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var imageDocumentPreview by remember { mutableStateOf<Bitmap?>(null) }
+    var imageDocumentOriginal by remember { mutableStateOf<Bitmap?>(null) }
     var originalBitmaps by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var adjustmentBase by remember { mutableStateOf<Bitmap?>(null) }
     var adjustmentLayerId by remember { mutableStateOf<String?>(null) }
@@ -65,6 +67,8 @@ private fun PhotoEditorApp() {
             addAll(session?.bitmapLayers?.values.orEmpty())
             addAll(originalBitmaps.values)
             adjustmentBase?.let(::add)
+            imageDocumentPreview?.let(::add)
+            imageDocumentOriginal?.let(::add)
         }
     )
 
@@ -129,6 +133,8 @@ private fun PhotoEditorApp() {
                     addAll(previous?.bitmapLayers?.values.orEmpty())
                     addAll(originalBitmaps.values)
                     adjustmentBase?.let(::add)
+                    imageDocumentPreview?.let(::add)
+                    imageDocumentOriginal?.let(::add)
                 }
             ) { bitmap ->
                 if (!bitmap.isRecycled) bitmap.recycle()
@@ -226,89 +232,76 @@ private fun PhotoEditorApp() {
         }
     }
 
+    fun closeImageDocument() {
+        imageDocumentPreview?.let { if (!it.isRecycled) it.recycle() }
+        imageDocumentOriginal?.let { if (!it.isRecycled) it.recycle() }
+        imageDocumentPreview = null
+        imageDocumentOriginal = null
+    }
+
+    fun addImageDocumentToCanvas() {
+        val imported = imageDocumentPreview ?: return
+        val original = imageDocumentOriginal ?: return
+        val active = session
+        val layerId = UUID.randomUUID().toString()
+        val next = if (active == null) {
+            EditorSession.fromBitmap(imported, name = "Background", id = layerId)
+        } else {
+            val scale = min(1f, min(
+                active.document.width.toFloat() / imported.width,
+                active.document.height.toFloat() / imported.height
+            ))
+            val x = (active.document.width - imported.width * scale) / 2f
+            val y = (active.document.height - imported.height * scale) / 2f
+            active.addBitmapLayer(
+                bitmap = imported,
+                name = "Image ${active.document.layers.size + 1}",
+                id = layerId,
+                transform = LayerTransform(x = x, y = y, scaleX = scale, scaleY = scale)
+            )
+        }
+        if (active == null) history.clear() else recordHistory(active)
+        finishAdjustment()
+        val oldOriginals = originalBitmaps
+        originalBitmaps = oldOriginals + (layerId to original)
+        if (renderSession(next)) {
+            imageDocumentPreview = null
+            imageDocumentOriginal = null
+            status = msg("أضيفت الصورة من نافذتها المستقلة إلى مساحة التصميم", "Image added from its separate document window to the design canvas")
+        } else {
+            originalBitmaps = oldOriginals
+        }
+    }
+
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            var importedBitmap: Bitmap? = null
+            var decoded: Bitmap? = null
             var originalCopy: Bitmap? = null
-            var ownershipTransferred = false
+            var transferred = false
             try {
-                importedBitmap = ImageBitmapDecoder.decode(context.contentResolver, uri)
-                val safeBitmap = importedBitmap
+                decoded = ImageBitmapDecoder.decode(context.contentResolver, uri)
+                val safeBitmap = decoded
                 if (safeBitmap == null) {
                     status = msg("تعذر قراءة الصورة أو أن أبعادها غير صالحة", "Could not decode the selected image or its dimensions are invalid")
                 } else {
-                    val active = session
-                    val layerId = UUID.randomUUID().toString()
-                    val originalSnapshot = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    originalCopy = safeBitmap.copy(Bitmap.Config.ARGB_8888, false)
                         ?: error("Could not create the original-image snapshot")
-                    originalCopy = originalSnapshot
-
-                    if (active == null) {
-                        val first = EditorSession.fromBitmap(
-                            safeBitmap,
-                            name = "Background",
-                            id = layerId
-                        )
-                        history.clear()
-                        finishAdjustment()
-                        renderSession(first)
-                        originalBitmaps = mapOf(layerId to originalSnapshot)
-                        originalCopy = null
-                        ownershipTransferred = true
-                        status = msg(
-                            "تم إنشاء المستند وفتح الصورة كطبقة خلفية",
-                            "Document created with the image as its background layer"
-                        )
-                    } else {
-                        recordHistory(active)
-                        val scale = min(
-                            1f,
-                            min(
-                                active.document.width.toFloat() / safeBitmap.width,
-                                active.document.height.toFloat() / safeBitmap.height
-                            )
-                        )
-                        val x = (active.document.width - safeBitmap.width * scale) / 2f
-                        val y = (active.document.height - safeBitmap.height * scale) / 2f
-                        val next = active.addBitmapLayer(
-                            bitmap = safeBitmap,
-                            name = "Image ${active.document.layers.size + 1}",
-                            id = layerId,
-                            transform = LayerTransform(
-                                x = x,
-                                y = y,
-                                scaleX = scale,
-                                scaleY = scale
-                            )
-                        )
-                        finishAdjustment()
-                        renderSession(next)
-                        originalBitmaps = originalBitmaps + (layerId to originalSnapshot)
-                        originalCopy = null
-                        ownershipTransferred = true
-                        status = msg(
-                            "تمت إضافة الصورة كطبقة مستقلة",
-                            "Image added as an independent layer"
-                        )
-                    }
+                    closeImageDocument()
+                    imageDocumentPreview = safeBitmap
+                    imageDocumentOriginal = originalCopy
+                    originalCopy = null
+                    transferred = true
+                    status = msg("فُتحت الصورة في نافذة مستند مستقلة؛ أضفها إلى مساحة التصميم عند الحاجة", "Image opened in a separate document window; add it to the design when ready")
                 }
-            } catch (error: OutOfMemoryError) {
-                status = msg(
-                    "لا توجد ذاكرة كافية لفتح الصورة؛ جرّب صورة أصغر",
-                    "Not enough memory to open this image; try a smaller image"
-                )
+            } catch (_: OutOfMemoryError) {
+                status = msg("لا توجد ذاكرة كافية لفتح الصورة؛ جرّب صورة أصغر", "Not enough memory to open this image; try a smaller image")
             } catch (error: Exception) {
-                status = msg(
-                    "تعذر فتح الصورة: ${error.localizedMessage ?: "خطأ غير معروف"}",
-                    "Could not open image: ${error.localizedMessage ?: "Unknown error"}"
-                )
+                status = msg("تعذر فتح الصورة: ${error.localizedMessage ?: "خطأ غير معروف"}", "Could not open image: ${error.localizedMessage ?: "Unknown error"}")
             } finally {
                 originalCopy?.let { if (!it.isRecycled) it.recycle() }
-                if (!ownershipTransferred) {
-                    importedBitmap?.let { if (!it.isRecycled) it.recycle() }
-                }
+                if (!transferred) decoded?.let { if (!it.isRecycled) it.recycle() }
             }
         }
     }
@@ -417,6 +410,9 @@ private fun PhotoEditorApp() {
 
     EditorScreen(
         bitmap = previewBitmap,
+        imageDocumentPreview = imageDocumentPreview,
+        onAddImageDocumentToCanvas = { addImageDocumentToCanvas() },
+        onCloseImageDocument = { closeImageDocument() },
         canAdjustSelectedLayer = canAdjustSelectedLayer,
         status = status,
         canUndo = history.canUndo,
