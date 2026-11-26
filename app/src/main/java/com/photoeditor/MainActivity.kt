@@ -492,7 +492,8 @@ private fun PhotoEditorApp() {
                     updateLayer(hitId) { it.selectLayer(hitId) }
                     status = msg("تم تحديد الطبقة من مساحة العمل", "Layer selected from canvas")
                 }
-            }
+                hitId
+            } else null
         },
         onToggleLanguage = { isArabic = !isArabic },
         onOpen = { imagePicker.launch("image/*") },
