@@ -393,7 +393,8 @@ fun EditorScreen(
                                 }
                             }
                             Row(
-                                Modifier.align(Alignment.TopEnd)
+                                Modifier.align(Alignment.TopStart)
+                                    .padding(start = 6.dp)
                                     .background(Color(0xDD17191E), RoundedCornerShape(6.dp))
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -434,6 +435,13 @@ fun EditorScreen(
                                                 val selected = layer.id == selectedLayerId
                                                 Column(
                                                     Modifier.fillMaxWidth()
+                                                        .combinedClickable(
+                                                            onClick = { onSelectLayer(layer.id) },
+                                                            onDoubleClick = {
+                                                                onSelectLayer(layer.id)
+                                                                transformControlsLayerId = if (transformControlsLayerId == layer.id) null else layer.id
+                                                            }
+                                                        )
                                                         .pointerInput(layer.id) {
                                                             var accumulatedDrag = 0f
                                                             val reorderThreshold = 48.dp.toPx()
@@ -467,13 +475,7 @@ fun EditorScreen(
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Box(
                                                             Modifier.weight(1f).height(26.dp)
-                                                                .combinedClickable(
-                                                                    onClick = { onSelectLayer(layer.id) },
-                                                                    onDoubleClick = {
-                                                                        onSelectLayer(layer.id)
-                                                                        transformControlsLayerId = if (transformControlsLayerId == layer.id) null else layer.id
-                                                                    }
-                                                                ).padding(horizontal = 4.dp),
+                                                                .padding(horizontal = 4.dp),
                                                             contentAlignment = Alignment.CenterStart
                                                         ) {
                                                             Text(
@@ -814,11 +816,11 @@ fun EditorScreen(
 private fun PanelCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     var dragOffset by remember(title) { mutableStateOf(Offset(0f, 0f)) }
     val startY = when (title) {
-        "Layers", "الطبقات" -> 0
-        "Properties", "الخصائص" -> 290
-        "Colors", "الألوان" -> 500
+        "Layers", "الطبقات" -> 44
+        "Properties", "الخصائص" -> 310
+        "Colors", "الألوان" -> 520
         "History", "السجل" -> 650
-        "Shapes", "الأشكال" -> 120
+        "Shapes", "الأشكال" -> 164
         else -> 240
     }
     val startX = when (title) { "Colors", "الألوان" -> 150; "Shapes", "الأشكال" -> 150; else -> 0 }
