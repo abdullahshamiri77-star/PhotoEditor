@@ -215,7 +215,6 @@ fun EditorScreen(
                         Text(label("تحريك الطبقة", "Move Layer"), style = MaterialTheme.typography.labelSmall)
                     }
                     Spacer(Modifier.weight(1f))
-                    Text(if (bitmap == null) label("لا يوجد مستند", "No document") else "${bitmap.width} × ${bitmap.height} px", color = MutedText, style = MaterialTheme.typography.labelSmall)
                 }
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     // Left tool rail.
