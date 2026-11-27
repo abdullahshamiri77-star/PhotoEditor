@@ -442,24 +442,7 @@ fun EditorScreen(
                                                                 transformControlsLayerId = if (transformControlsLayerId == layer.id) null else layer.id
                                                             }
                                                         )
-                                                        .pointerInput(layer.id) {
-                                                            var accumulatedDrag = 0f
-                                                            val reorderThreshold = 48.dp.toPx()
-                                                            detectDragGestures(
-                                                                onDragEnd = { accumulatedDrag = 0f },
-                                                                onDragCancel = { accumulatedDrag = 0f }
-                                                            ) { change, dragAmount ->
-                                                                change.consume()
-                                                                accumulatedDrag += dragAmount.y
-                                                                while (abs(accumulatedDrag) >= reorderThreshold) {
-                                                                    // The visible list is reversed (top layer first), while the
-                                                                    // document model is bottom-to-top.
-                                                                    val direction = if (accumulatedDrag < 0f) 1 else -1
-                                                                    onMoveLayer(layer.id, direction)
-                                                                    accumulatedDrag -= sign(accumulatedDrag) * reorderThreshold
-                                                                }
-                                                            }
-                                                        }
+                                                        
                                                         .background(
                                                             if (selected) Accent.copy(alpha = 0.24f) else Color(0xFF202329),
                                                             RoundedCornerShape(4.dp)
