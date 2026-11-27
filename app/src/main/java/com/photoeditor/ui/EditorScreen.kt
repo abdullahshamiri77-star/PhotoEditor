@@ -435,6 +435,26 @@ fun EditorScreen(
                                                 val selected = layer.id == selectedLayerId
                                                 Column(
                                                     Modifier.fillMaxWidth()
+                                                        .pointerInput(layer.id, layers.size) {
+                                                            var accumulated = 0f
+                                                            val threshold = 34.dp.toPx()
+                                                            detectDragGestures(
+                                                                onDragStart = { onSelectLayer(layer.id) },
+                                                                onDragEnd = { accumulated = 0f },
+                                                                onDragCancel = { accumulated = 0f }
+                                                            ) { change, dragAmount ->
+                                                                change.consume()
+                                                                accumulated += dragAmount.y
+                                                                while (accumulated <= -threshold) {
+                                                                    onMoveLayer(layer.id, 1)
+                                                                    accumulated += threshold
+                                                                }
+                                                                while (accumulated >= threshold) {
+                                                                    onMoveLayer(layer.id, -1)
+                                                                    accumulated -= threshold
+                                                                }
+                                                            }
+                                                        }
                                                         .combinedClickable(
                                                             onClick = { onSelectLayer(layer.id) },
                                                             onDoubleClick = {
@@ -461,8 +481,6 @@ fun EditorScreen(
                                                         TextButton(onClick = { onToggleLayerLock(layer.id, !layer.locked) }, modifier = Modifier.height(30.dp), contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)) { Text(if (layer.locked) "🔒" else "◇", color = if (layer.locked) Color(0xFFFFC66D) else MutedText, style = MaterialTheme.typography.labelSmall) }
                                                     }
                                                     Row(Modifier.fillMaxWidth().height(26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                        TextButton(onClick = { onMoveLayer(layer.id, 1) }, modifier = Modifier.height(26.dp), enabled = layerIndex < layers.lastIndex, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("↑", color = MutedText, style = MaterialTheme.typography.labelSmall) }
-                                                        TextButton(onClick = { onMoveLayer(layer.id, -1) }, modifier = Modifier.height(26.dp), enabled = layerIndex > 0, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("↓", color = MutedText, style = MaterialTheme.typography.labelSmall) }
                                                         Text(layer.kind.name, color = MutedText, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
                                                         TextButton(onClick = { onDeleteLayer(layer.id) }, modifier = Modifier.height(26.dp), contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("×", color = Color(0xFFFF8585), style = MaterialTheme.typography.labelSmall) }
                                                     }
@@ -523,15 +541,7 @@ fun EditorScreen(
                                                 )
                                                 Text("%", color = MutedText, style = MaterialTheme.typography.labelSmall)
                                             }
-                                            Slider(
-                                                value = selectedLayer.opacity,
-                                                onValueChange = {
-                                                    opacityPercentText = (it * 100).toInt().toString()
-                                                    onLayerOpacityChange(selectedLayer.id, it)
-                                                },
-                                                onValueChangeFinished = onLayerOpacityFinish,
-                                                enabled = !selectedLayer.locked
-                                            )
+
                                         }
                                     }
                                 }
