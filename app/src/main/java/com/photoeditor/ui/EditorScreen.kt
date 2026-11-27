@@ -427,8 +427,8 @@ fun EditorScreen(
                                         Text(label("لا توجد طبقات بعد", "No layers yet"), color = MutedText, style = MaterialTheme.typography.labelSmall)
                                     } else {
                                         Column(
-                                            Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            Modifier.fillMaxWidth().heightIn(max = 248.dp).verticalScroll(rememberScrollState()),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
                                             layers.asReversed().forEach { layer ->
                                                 val layerIndex = layers.indexOfFirst { it.id == layer.id }
@@ -442,70 +442,29 @@ fun EditorScreen(
                                                                 transformControlsLayerId = if (transformControlsLayerId == layer.id) null else layer.id
                                                             }
                                                         )
-                                                        
-                                                        .background(
-                                                            if (selected) Accent.copy(alpha = 0.24f) else Color(0xFF202329),
-                                                            RoundedCornerShape(4.dp)
-                                                        )
-                                                        .border(
-                                                            if (selected) 2.dp else 1.dp,
-                                                            if (selected) Color(0xFF62B5FF) else PanelEdge,
-                                                            RoundedCornerShape(4.dp)
-                                                        )
-                                                        .padding(2.dp),
+                                                        .background(if (selected) Color(0xFF303D4C) else Color(0xFF202329), RoundedCornerShape(3.dp))
+                                                        .border(1.dp, if (selected) Color(0xFF4DA5F5) else Color(0xFF343941), RoundedCornerShape(3.dp))
+                                                        .padding(horizontal = 3.dp, vertical = 2.dp),
                                                     verticalArrangement = Arrangement.spacedBy(0.dp)
                                                 ) {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Box(
-                                                            Modifier.weight(1f).height(26.dp)
-                                                                .padding(horizontal = 4.dp),
-                                                            contentAlignment = Alignment.CenterStart
+                                                            Modifier.size(28.dp).background(Color(0xFF16191E), RoundedCornerShape(2.dp))
+                                                                .border(1.dp, Color(0xFF454B56), RoundedCornerShape(2.dp)),
+                                                            contentAlignment = Alignment.Center
                                                         ) {
-                                                            Text(
-                                                                (if (selected) "● " else "") + layer.name,
-                                                                color = if (selected) Color(0xFF9BD0FF) else MainText,
-                                                                maxLines = 1,
-                                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                                                style = MaterialTheme.typography.labelSmall
-                                                            )
+                                                            Text("▧", color = if (selected) Color(0xFF8BC5FF) else MutedText, style = MaterialTheme.typography.labelMedium)
                                                         }
-                                                        TextButton(
-                                                            onClick = { onToggleLayerVisibility(layer.id, !layer.visible) },
-                                                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)
-                                                        ) {
-                                                            Text(if (layer.visible) "◉" else "○", color = MutedText)
-                                                        }
-                                                        TextButton(
-                                                            onClick = { onToggleLayerLock(layer.id, !layer.locked) },
-                                                            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
-                                                        ) {
-                                                            Text(if (layer.locked) "🔒" else "🔓", color = if (layer.locked) Color(0xFFFFC66D) else MutedText)
-                                                        }
+                                                        Spacer(Modifier.width(5.dp))
+                                                        Text(layer.name, modifier = Modifier.weight(1f), color = if (selected) Color(0xFF9BD0FF) else MainText, maxLines = 1, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, style = MaterialTheme.typography.labelSmall)
+                                                        TextButton(onClick = { onToggleLayerVisibility(layer.id, !layer.visible) }, modifier = Modifier.height(30.dp), contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)) { Text(if (layer.visible) "◉" else "○", color = MutedText, style = MaterialTheme.typography.labelMedium) }
+                                                        TextButton(onClick = { onToggleLayerLock(layer.id, !layer.locked) }, modifier = Modifier.height(30.dp), contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)) { Text(if (layer.locked) "🔒" else "◇", color = if (layer.locked) Color(0xFFFFC66D) else MutedText, style = MaterialTheme.typography.labelSmall) }
                                                     }
-                                                    Row(
-                                                        Modifier.fillMaxWidth().height(24.dp),
-                                                        horizontalArrangement = Arrangement.spacedBy(1.dp)
-                                                    ) {
-                                                        TextButton(
-                                                            onClick = { onMoveLayer(layer.id, 1) },
-                                                            enabled = layerIndex < layers.lastIndex,
-                                                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp)
-                                                        ) { Text("↑", color = MutedText) }
-                                                        TextButton(
-                                                            onClick = { onMoveLayer(layer.id, -1) },
-                                                            enabled = layerIndex > 0,
-                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                                        ) { Text("↓", color = MutedText) }
-                                                        TextButton(
-                                                            onClick = { onDeleteLayer(layer.id) },
-                                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                                        ) { Text("×", color = Color(0xFFFF8585)) }
-                                                        Spacer(Modifier.weight(1f))
-                                                        Text(
-                                                            layer.kind.name,
-                                                            color = MutedText,
-                                                            style = MaterialTheme.typography.labelSmall
-                                                        )
+                                                    Row(Modifier.fillMaxWidth().height(26.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                        TextButton(onClick = { onMoveLayer(layer.id, 1) }, modifier = Modifier.height(26.dp), enabled = layerIndex < layers.lastIndex, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("↑", color = MutedText, style = MaterialTheme.typography.labelSmall) }
+                                                        TextButton(onClick = { onMoveLayer(layer.id, -1) }, modifier = Modifier.height(26.dp), enabled = layerIndex > 0, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("↓", color = MutedText, style = MaterialTheme.typography.labelSmall) }
+                                                        Text(layer.kind.name, color = MutedText, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                                        TextButton(onClick = { onDeleteLayer(layer.id) }, modifier = Modifier.height(26.dp), contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text("×", color = Color(0xFFFF8585), style = MaterialTheme.typography.labelSmall) }
                                                     }
                                                 }
                                             }
@@ -808,8 +767,8 @@ private fun PanelCard(title: String, content: @Composable ColumnScope.() -> Unit
     }
     val startX = when (title) { "Colors", "الألوان" -> 150; "Shapes", "الأشكال" -> 150; else -> 0 }
     Column(
-        Modifier.width(156.dp).offset { IntOffset(startX.dp.roundToPx() + dragOffset.x.roundToInt(), startY.dp.roundToPx() + dragOffset.y.roundToInt()) }
-            .background(Color(0xFF292D35), RoundedCornerShape(5.dp)).border(1.dp, PanelEdge, RoundedCornerShape(5.dp)).padding(6.dp),
+        Modifier.width(if (title == "Layers" || title == "الطبقات") 190.dp else 156.dp).offset { IntOffset(startX.dp.roundToPx() + dragOffset.x.roundToInt(), startY.dp.roundToInt() + dragOffset.y.roundToInt()) }
+            .background(Color(0xFF22262D), RoundedCornerShape(5.dp)).border(1.dp, if (title == "Layers" || title == "الطبقات") Color(0xFF4B5563) else PanelEdge, RoundedCornerShape(5.dp)).padding(5.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
         content = {
             Row(Modifier.fillMaxWidth().pointerInput(title) {
