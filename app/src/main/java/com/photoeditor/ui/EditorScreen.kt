@@ -767,7 +767,7 @@ private fun PanelCard(title: String, content: @Composable ColumnScope.() -> Unit
     }
     val startX = when (title) { "Colors", "الألوان" -> 150; "Shapes", "الأشكال" -> 150; else -> 0 }
     Column(
-        Modifier.width(if (title == "Layers" || title == "الطبقات") 190.dp else 156.dp).offset { IntOffset(startX.dp.roundToPx() + dragOffset.x.roundToInt(), startY.dp.roundToInt() + dragOffset.y.roundToInt()) }
+        Modifier.width(if (title == "Layers" || title == "الطبقات") 190.dp else 156.dp).offset { IntOffset(startX.dp.roundToPx() + dragOffset.x.roundToInt(), startY.dp.roundToPx() + dragOffset.y.roundToInt()) }
             .background(Color(0xFF22262D), RoundedCornerShape(5.dp)).border(1.dp, if (title == "Layers" || title == "الطبقات") Color(0xFF4B5563) else PanelEdge, RoundedCornerShape(5.dp)).padding(5.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
         content = {
